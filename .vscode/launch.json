@@ -1,0 +1,16 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+  {
+    "name": "(Windows) Launch",
+    "type": "cppvsdbg",
+      "program": "${workspaceFolder}/out/game.exe",
+      "console": "integratedTerminal",
+      "request": "launch",
+      "args": [],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}/out/",
+      "environment": []
+    }
+  ]
+}
