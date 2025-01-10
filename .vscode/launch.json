@@ -7,7 +7,11 @@
       "program": "${workspaceFolder}/out/game.exe",
       "console": "integratedTerminal",
       "request": "launch",
-      "args": [],
+      "args": [
+        "-L${workspaceFolder}/lib",
+        "${workspaceFolder}/out/game.c",
+        "${workspaceFolder}/src/glad.c",
+      ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/out/",
       "environment": []

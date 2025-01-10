@@ -33,7 +33,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl game.c -Fe"./out/game.exe" -Fo"./out/" -Od -Zi -nologo -link -incremental:no 
+cl game.c -Fe"./out/game.exe" -Fo"./out/" -Od -Zi -nologo -link glfw3.lib -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
