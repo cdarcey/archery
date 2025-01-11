@@ -4,7 +4,7 @@
   {
     "name": "(Windows) Launch",
     "type": "cppvsdbg",
-      "program": "${workspaceFolder}/out/game.exe",
+      "program": "${workspaceFolder}/out/main.exe",
       "console": "integratedTerminal",
       "request": "launch",
       "args": [

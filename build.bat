@@ -21,7 +21,7 @@
 @if not exist "./out" @mkdir "./out"
 
 @rem cleanup binaries if not hot reloading
-@if exist "./out/game.exe" del ".\out\game.exe"
+@if exist "./out/main.exe" del ".\out\main.exe"
 @if exist "./out/cpptest_*.pdb" del ".\out\cpptest_*.pdb"
 
 @rem create output directory
@@ -33,7 +33,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl game.c -Fe"./out/game.exe" -Fo"./out/" -Od -Zi -nologo -I"./include" -MD -link -LIBPATH:"./lib" /NODEFAULTLIB:ucrt.lib glfw3.lib opengl32.lib ucrt.lib gdi32.lib Ole32.lib Shell32.lib user32.lib -incremental:no 
+cl main.c -Fe"./out/main.exe" -Fo"./out/" -Od -Zi -nologo -I"./include" -MD -link -LIBPATH:"./lib" /NODEFAULTLIB:ucrt.lib glfw3.lib opengl32.lib ucrt.lib gdi32.lib Ole32.lib Shell32.lib user32.lib -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
