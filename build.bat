@@ -33,7 +33,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl main.c -Fe"./out/main.exe" -Fo"./out/" -Od -Zi -nologo -I"./include" -MD -link -LIBPATH:"./lib" /NODEFAULTLIB:ucrt.lib glfw3.lib opengl32.lib ucrt.lib gdi32.lib Ole32.lib Shell32.lib user32.lib -incremental:no 
+cl main.c rasterize.c -Fe"./out/main.exe" -Fo"./out/" -Od -Zi -nologo -I"./include" -MD -link -LIBPATH:"./lib" /NODEFAULTLIB:ucrt.lib glfw3.lib opengl32.lib ucrt.lib gdi32.lib Ole32.lib Shell32.lib user32.lib -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
