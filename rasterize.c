@@ -111,8 +111,8 @@ void set_pixel(Data* ptData, Vertex input, Color tColor)
     if(input.yPos >= ptData->iHeight)
         return;
 
-    int iRowOffset = ptData->iWidth * 3 * input.xPos;
-    int iPixelStart = iRowOffset + input.yPos * 3;
+    int iRowOffset = ptData->iWidth * 3 * input.yPos;
+    int iPixelStart = iRowOffset + input.xPos * 3;
 
     ptData->pucData[iPixelStart + 0] = tColor.r;
     ptData->pucData[iPixelStart + 1] = tColor.g;
