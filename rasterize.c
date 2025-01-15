@@ -30,10 +30,13 @@ void clear_frame_buffer(Data* ptData, Color tColor);
 void set_pixel(Data* ptData, Vertex input, Color tColor);
 void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color tColor);
 int edgeFunction(Vertex a, Vertex b, Vertex c);
+int maxNum(int a, int b, int c);
+int minNum(int a, int b, int c);
 
 
 int main()
 {
+
 
     Data tData = {0};
     initialize_frame_buffer(&tData, 256, 256);
@@ -125,26 +128,24 @@ void set_pixel(Data* ptData, Vertex input, Color tColor)
 }
 
 void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color tColor)
-{
+{ 
 
-    /* 
-    make min and max function to loop inside of a bounding box
-
-    const minX = MIN(A.x, B.x, C.x);
-    const minY = MIN(A.y, B.y, C.y);
-    const maxX = MAX(A.x, B.x, C.x);
-    const maxY = MAX(A.y, B.y, C.y);  
+    /* min & max to only check pixels in a bounding box*/
+    const minX = minNum(a.xPos, b.xPos, c.xPos);
+    const minY = minNum(a.yPos, b.yPos, c.yPos);
+    const maxX = maxNum(a.xPos, b.xPos, c.xPos);
+    const maxY = maxNum(a.yPos, b.yPos, c.yPos);  
     
-    */
-
+    /* p usedfor iterating through pixels*/
     Vertex p = {
         .xPos = 0,
         .yPos = 0
     };
 
-    for(p.yPos = 0; p.yPos < ptData->iHeight; p.yPos++)
+    /* loop and set pixels inside triangle */
+    for(p.yPos = minY; p.yPos < maxY; p.yPos++)
     {
-        for(p.xPos = 0; p.xPos < ptData->iWidth; p.xPos++)
+        for(p.xPos = minX; p.xPos < maxX; p.xPos++)
         {
             const ABP = edgeFunction(a, b, p);
             const BCP = edgeFunction(b, c, p);
@@ -161,4 +162,22 @@ void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color tColor
 int edgeFunction(Vertex a, Vertex b, Vertex c)
 {
     return(b.xPos - a.xPos) * (c.yPos - a.yPos) - (b.yPos - a.yPos) * (c.xPos - a.xPos);
+}
+
+int maxNum(int a, int b, int c)
+{
+    if(a > b && a > c)
+    {return a;}
+    else if(b > a && b > c)
+    {return b;}
+    else return c;
+}
+
+int minNum(int a, int b, int c)
+{
+    if(a < b && a < c)
+    {return a;}
+    else if(b < a && b < c)
+    {return b;}
+    else return c;
 }
