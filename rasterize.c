@@ -37,21 +37,21 @@ int main()
 
     Data tData = {0};
     initialize_frame_buffer(&tData, 256, 256);
-    // clear_frame_buffer(&tData, (Color){0});
+    clear_frame_buffer(&tData, (Color){0});
 
     Vertex a = {
         .xPos = 50,
-        .yPos = 50
+        .yPos = 200
     };
 
     Vertex b = {
-        .xPos = 150,
+        .xPos = 125,
         .yPos = 50
     };
 
     Vertex c = {
-        .xPos = 75,
-        .yPos = 150
+        .xPos = 200,
+        .yPos = 200
     };
 
     Color tColor = {
@@ -85,12 +85,16 @@ void output_frame_buffer(Data* ptData)
 
 void clear_frame_buffer(Data* ptData, Color tColor)
 {
+    Vertex p = {
+        .xPos = 0,
+        .yPos = 0
+    };
 
     for(int iRow = 0; iRow < ptData->iHeight; iRow++)
     {
         for(int iColumn = 0; iColumn < ptData->iWidth; iColumn++)
         {
-//            set_pixel(ptData, iColumn, iRow, tColor);
+            set_pixel(ptData, p , tColor);
         }
     }
 
