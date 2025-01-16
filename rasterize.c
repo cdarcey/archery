@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 #include "stb_image_write.h"
 
@@ -28,7 +29,7 @@ void initialize_frame_buffer(Data* ptData, int iWidth, int iHeight);
 void output_frame_buffer(Data* ptData);
 void clear_frame_buffer(Data* ptData, Color tColor);
 void set_pixel(Data* ptData, Vertex input, Color tColor);
-void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color tColor);
+void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color rColor, Color gColor, Color bColor);
 int edgeFunction(Vertex a, Vertex b, Vertex c);
 int maxNum(int a, int b, int c);
 int minNum(int a, int b, int c);
@@ -63,8 +64,26 @@ int main()
         .b = 255
     };
 
+    Color red = {
+        .r = 255,
+        .g = 0,
+        .b = 0
+    };
+    
+    Color green = {
+        .r = 0,
+        .g = 255,
+        .b = 0
+    };
 
-    rasterize_triangle(&tData, a, b, c, tColor);
+    Color blue = {
+        .r = 0,
+        .g = 0,
+        .b = 255
+    };
+
+
+    rasterize_triangle(&tData, a, b, c, red, green, blue);
     output_frame_buffer(&tData);
     
 }
@@ -127,33 +146,43 @@ void set_pixel(Data* ptData, Vertex input, Color tColor)
 
 }
 
-void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color tColor)
+void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color rColor, Color gColor, Color bColor)
 { 
-
-    /* min & max to only check pixels in a bounding box*/
-    const minX = minNum(a.xPos, b.xPos, c.xPos);
-    const minY = minNum(a.yPos, b.yPos, c.yPos);
-    const maxX = maxNum(a.xPos, b.xPos, c.xPos);
-    const maxY = maxNum(a.yPos, b.yPos, c.yPos);  
-    
     /* p usedfor iterating through pixels*/
     Vertex p = {
         .xPos = 0,
         .yPos = 0
     };
 
+    /* edge function for entire triangle */
+    float ABC = edgeFunction(a, b, c);
+
+    /* min & max to only check pixels in a bounding box*/
+    const minX = minNum(a.xPos, b.xPos, c.xPos);
+    const minY = minNum(a.yPos, b.yPos, c.yPos);
+    const maxX = maxNum(a.xPos, b.xPos, c.xPos);
+    const maxY = maxNum(a.yPos, b.yPos, c.yPos);  
+
     /* loop and set pixels inside triangle */
     for(p.yPos = minY; p.yPos < maxY; p.yPos++)
     {
         for(p.xPos = minX; p.xPos < maxX; p.xPos++)
         {
-            const ABP = edgeFunction(a, b, p);
-            const BCP = edgeFunction(b, c, p);
-            const CAP = edgeFunction(c, a, p);
+            const int ABP = edgeFunction(a, b, p);
+            const int BCP = edgeFunction(b, c, p);
+            const int CAP = edgeFunction(c, a, p);
+
+            const float weightA = BCP / ABC;
+            const float weightB = CAP / ABC;
+            const float weightC = ABP / ABC;
 
             if(ABP >= 0 && BCP >= 0 && CAP >= 0)
             {
-                set_pixel(ptData, p, (Color){tColor.r, tColor.g, tColor.b});
+                const r = (rColor.r * weightA) + (gColor.r * weightB) + (bColor.r * weightC);
+                const g = rColor.g * weightA + gColor.g * weightB + bColor.g * weightC;
+                const b = rColor.b * weightA + gColor.b * weightB + bColor.b * weightC;
+                Color colorP = {r, g, b};
+                set_pixel(ptData, p, colorP);
             }
         }
     }
