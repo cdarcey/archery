@@ -2,97 +2,115 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
 #include "stb_image_write.h"
 
-typedef struct _Data
+typedef struct _cd_Data
 {
     int            iWidth;
     int            iHeight;
     unsigned char* pucData;
-} Data;
+} cd_Data;
 
-typedef struct _Color
+typedef struct _cd_Color
 {
     unsigned char r;
     unsigned char g;
     unsigned char b;
-} Color;
+} cd_Color;
 
-typedef struct _Vertex
+typedef struct _cd_Vertex
 {
+
+    // position
     int xPos;
     int yPos;
-} Vertex;
 
-void initialize_frame_buffer(Data* ptData, int iWidth, int iHeight);
-void output_frame_buffer(Data* ptData);
-void clear_frame_buffer(Data* ptData, Color tColor);
-void set_pixel(Data* ptData, Vertex input, Color tColor);
-void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color rColor, Color gColor, Color bColor);
-int edgeFunction(Vertex a, Vertex b, Vertex c);
-int maxNum(int a, int b, int c);
-int minNum(int a, int b, int c);
+    // color
+    unsigned char r;
+    unsigned char g;
+    unsigned char b;
 
+} cd_Vertex;
+
+// public
+void cd_initialize_frame_buffer(cd_Data* ptData, int iWidth, int iHeight);
+void cd_output_frame_buffer(cd_Data* ptData);
+void cd_clear_frame_buffer(cd_Data* ptData, cd_Color tColor);
+void cd_set_pixel(cd_Data* ptData, cd_Vertex input, cd_Color tColor);
+// void cd_rasterize_triangle(cd_Data* ptData, cd_Vertex a, cd_Vertex b, cd_Vertex c, cd_Color rColor, cd_Color gColor, cd_Color bColor);
+
+// homework
+void cd_rasterize_triangles(cd_Data* ptData, cd_Vertex* atVerticies, int iVertexCount);
 
 int main()
 {
 
+    cd_Data tData = {0};
+    cd_initialize_frame_buffer(&tData, 256, 256);
+    cd_clear_frame_buffer(&tData, (cd_Color){255, 255, 255});
 
-    Data tData = {0};
-    initialize_frame_buffer(&tData, 256, 256);
-    clear_frame_buffer(&tData, (Color){0});
+    /* vertices */
+    cd_Vertex VertexP = {
+        .xPos = 0,
+        .yPos = 0,
+        .r    = 0,
+        .g    = 0,
+        .b    = 0
+    };
 
-    Vertex a = {
+    cd_Vertex a = {
         .xPos = 50,
-        .yPos = 200
+        .yPos = 200,
+        .r    = 255,
+        .g    = 0,
+        .b    = 0
     };
 
-    Vertex b = {
+    cd_Vertex b = {
         .xPos = 125,
-        .yPos = 50
+        .yPos = 50,
+        .r    = 0,
+        .g    = 255,
+        .b    = 0
     };
-
-    Vertex c = {
+    cd_Vertex c = {
         .xPos = 200,
-        .yPos = 200
+        .yPos = 200,
+        .r    = 0,
+        .g    = 0,
+        .b    = 255
+    };
+    cd_Vertex d = {
+        .xPos = 25,
+        .yPos = 175,
+        .r    = 255,
+        .g    = 0,
+        .b    = 0
     };
 
-    Color tColor = {
-        .r = 255,
-        .g = 255,
-        .b = 255
+    cd_Vertex e = {
+        .xPos = 100,
+        .yPos = 25,
+        .r    = 0,
+        .g    = 255,
+        .b    = 0
+    };
+    cd_Vertex f = {
+        .xPos = 175,
+        .yPos = 175,
+        .r    = 0,
+        .g    = 0,
+        .b    = 255
     };
 
-    Color red = {
-        .r = 255,
-        .g = 0,
-        .b = 0
-    };
-    
-    Color green = {
-        .r = 0,
-        .g = 255,
-        .b = 0
-    };
+    cd_Vertex atVertexBuffer[3] = {a, b, c};
 
-    Color blue = {
-        .r = 0,
-        .g = 0,
-        .b = 255
-    };
-
-
-    rasterize_triangle(&tData, a, b, c, red, green, blue);
-    output_frame_buffer(&tData);
+    cd_rasterize_triangles(&tData, atVertexBuffer, 3);
+    cd_output_frame_buffer(&tData);
     
 }
 
-
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
-
-void initialize_frame_buffer(Data* ptData, int iWidth, int iHeight)
+void cd_initialize_frame_buffer(cd_Data* ptData, int iWidth, int iHeight)
 {
     ptData->iWidth = iWidth;
     ptData->iHeight = iHeight;
@@ -100,29 +118,49 @@ void initialize_frame_buffer(Data* ptData, int iWidth, int iHeight)
     memset(ptData->pucData, 0, sizeof(char) * 3 * iWidth * iHeight);
 }
 
-void output_frame_buffer(Data* ptData)
+void cd_output_frame_buffer(cd_Data* ptData)
 {
     stbi_write_png("output.png", ptData->iWidth, ptData->iHeight, 3, ptData->pucData, sizeof(char) * 3 * ptData->iWidth);
 }
 
-void clear_frame_buffer(Data* ptData, Color tColor)
+void cd_clear_frame_buffer(cd_Data* ptData, cd_Color tColor)
 {
-    Vertex p = {
-        .xPos = 0,
-        .yPos = 0
-    };
 
     for(int iRow = 0; iRow < ptData->iHeight; iRow++)
     {
         for(int iColumn = 0; iColumn < ptData->iWidth; iColumn++)
         {
-            set_pixel(ptData, p , tColor);
+            cd_set_pixel(ptData, (cd_Vertex){iColumn, iRow}, tColor);
         }
     }
 
 }
 
-void set_pixel(Data* ptData, Vertex input, Color tColor)
+int cd_edgeFunction(cd_Vertex one, cd_Vertex two, cd_Vertex three)
+{
+    return(two.xPos - one.xPos) * (three.yPos - one.yPos) - (two.yPos - one.yPos) * (three.xPos - one.xPos);
+    // return(atVerticies[1].xPos - atVerticies[0].xPos) * (VertexP.yPos - atVerticies[0].yPos) - (atVerticies[1].yPos - atVerticies[0].yPos) * (VertexP.xPos - atVerticies[1].xPos);
+}
+
+int cd_maxNum(int a, int b, int c)
+{
+    if(a > b && a > c)
+    {return a;}
+    else if(b > a && b > c)
+    {return b;}
+    else return c;
+}
+
+int cd_minNum(int a, int b, int c)
+{
+    if(a < b && a < c)
+    {return a;}
+    else if(b < a && b < c)
+    {return b;}
+    else return c;
+}
+
+void cd_set_pixel(cd_Data* ptData, cd_Vertex input, cd_Color tColor)
 {
 
     if(input.xPos < 0)
@@ -146,31 +184,32 @@ void set_pixel(Data* ptData, Vertex input, Color tColor)
 
 }
 
-void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color rColor, Color gColor, Color bColor)
+/*
+void cd_rasterize_triangle(cd_Data* ptData, cd_Vertex a, cd_Vertex b, cd_Vertex c, cd_Color rColor, cd_Color gColor, cd_Color bColor)
 { 
-    /* p usedfor iterating through pixels*/
-    Vertex p = {
+    // p usedfor iterating through pixels
+    cd_Vertex p = {
         .xPos = 0,
         .yPos = 0
     };
 
-    /* edge function for entire triangle */
-    float ABC = edgeFunction(a, b, c);
+    // edge function for entire triangle 
+    float ABC = (float)edgeFunction(a, b, c);
 
-    /* min & max to only check pixels in a bounding box*/
-    const minX = minNum(a.xPos, b.xPos, c.xPos);
-    const minY = minNum(a.yPos, b.yPos, c.yPos);
-    const maxX = maxNum(a.xPos, b.xPos, c.xPos);
-    const maxY = maxNum(a.yPos, b.yPos, c.yPos);  
+    // min & max to only check pixels in a bounding box
+    const int minX = cd_minNum(a.xPos, b.xPos, c.xPos);
+    const int minY = cd_minNum(a.yPos, b.yPos, c.yPos);
+    const int maxX = cd_maxNum(a.xPos, b.xPos, c.xPos);
+    const int maxY = cd_maxNum(a.yPos, b.yPos, c.yPos);  
 
-    /* loop and set pixels inside triangle */
+    // loop and set pixels inside triangle 
     for(p.yPos = minY; p.yPos < maxY; p.yPos++)
     {
         for(p.xPos = minX; p.xPos < maxX; p.xPos++)
         {
-            const int ABP = edgeFunction(a, b, p);
-            const int BCP = edgeFunction(b, c, p);
-            const int CAP = edgeFunction(c, a, p);
+            const int ABP = cd_edgeFunction(a, b, p);
+            const int BCP = cd_edgeFunction(b, c, p);
+            const int CAP = cd_edgeFunction(c, a, p);
 
             const float weightA = BCP / ABC;
             const float weightB = CAP / ABC;
@@ -178,35 +217,63 @@ void rasterize_triangle(Data* ptData, Vertex a, Vertex b, Vertex c, Color rColor
 
             if(ABP >= 0 && BCP >= 0 && CAP >= 0)
             {
-                const r = (rColor.r * weightA) + (gColor.r * weightB) + (bColor.r * weightC);
-                const g = rColor.g * weightA + gColor.g * weightB + bColor.g * weightC;
-                const b = rColor.b * weightA + gColor.b * weightB + bColor.b * weightC;
-                Color colorP = {r, g, b};
-                set_pixel(ptData, p, colorP);
+                unsigned char r = (unsigned char)((float)rColor.r * weightA + (float)gColor.r * weightB + (float)bColor.r * weightC);
+                unsigned char g = (unsigned char)((float)rColor.g * weightA + (float)gColor.g * weightB + (float)bColor.g * weightC);
+                unsigned char b0 = (unsigned char)((float)rColor.b * weightA + (float)gColor.b * weightB + (float)bColor.b * weightC);
+                
+                Color colorP = {r, g, b0};
+                cd_set_pixel(ptData, p, colorP);
             }
         }
     }
 }
+*/
 
-int edgeFunction(Vertex a, Vertex b, Vertex c)
+void cd_rasterize_triangles(cd_Data* ptData, cd_Vertex* atVerticies, int iVertexCount)
 {
-    return(b.xPos - a.xPos) * (c.yPos - a.yPos) - (b.yPos - a.yPos) * (c.xPos - a.xPos);
+    /* p usedfor iterating through pixels*/
+    cd_Vertex cd_P = {
+        .xPos = 0,
+        .yPos = 0
+    };
+
+    /* edge function for entire triangle */
+    float ABC = (float)(atVerticies[1].xPos - atVerticies[0].xPos) * (atVerticies[2].yPos - atVerticies[0].yPos) - (atVerticies[1].yPos - atVerticies[0].yPos) * (atVerticies[2].xPos - atVerticies[1].xPos);
+
+    /* min & max to only check pixels in a bounding box*/
+    const int minX = cd_minNum(atVerticies[0].xPos, atVerticies[1].xPos, atVerticies[2].xPos);
+    const int minY = cd_minNum(atVerticies[0].yPos, atVerticies[1].yPos, atVerticies[2].yPos);
+    const int maxX = cd_maxNum(atVerticies[0].xPos, atVerticies[1].xPos, atVerticies[2].xPos);
+    const int maxY = cd_maxNum(atVerticies[0].yPos, atVerticies[1].yPos, atVerticies[2].yPos);  
+
+    /* loop and set pixels inside triangle */
+    // for(int i = 0; i < iVertexCount; i++)
+    // {
+        for(cd_P.yPos = 0; cd_P.yPos < 256; cd_P.yPos++)
+        {
+            for(cd_P.xPos = 0; cd_P.xPos < 256; cd_P.xPos++)
+            {
+                const int ABP = cd_edgeFunction(atVerticies[0], atVerticies[1], cd_P);
+                const int BCP = cd_edgeFunction(atVerticies[1], atVerticies[2], cd_P);
+                const int CAP = cd_edgeFunction(atVerticies[2], atVerticies[0], cd_P);
+
+                const float weightA = BCP / ABC;
+                const float weightB = CAP / ABC;
+                const float weightC = ABP / ABC;
+
+                if(ABP >= 0 && BCP >= 0 && CAP >= 0)
+                {
+                    unsigned char red   = (unsigned char)((float)atVerticies[0].r * weightA + (float)atVerticies[1].r * weightB + (float)atVerticies[2].r * weightC);
+                    unsigned char green = (unsigned char)((float)atVerticies[0].g * weightA + (float)atVerticies[1].g * weightB + (float)atVerticies[2].g * weightC);
+                    unsigned char blue  = (unsigned char)((float)atVerticies[0].b * weightA + (float)atVerticies[1].b * weightB + (float)atVerticies[2].b * weightC);
+
+                    cd_Color colorP = {red, green, blue};
+                    cd_set_pixel(ptData, cd_P, colorP);
+                }
+            }
+        }
+    // }
 }
 
-int maxNum(int a, int b, int c)
-{
-    if(a > b && a > c)
-    {return a;}
-    else if(b > a && b > c)
-    {return b;}
-    else return c;
-}
-
-int minNum(int a, int b, int c)
-{
-    if(a < b && a < c)
-    {return a;}
-    else if(b < a && b < c)
-    {return b;}
-    else return c;
-}
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
