@@ -235,20 +235,21 @@ void cd_rasterize_triangles(cd_Data* ptData, cd_Vertex* atVerticies, int iVertex
     cd_Vertex cd_P = {
         .xPos = 0,
         .yPos = 0
-    };
-
-    /* edge function for entire triangle */
-    float ABC = (float)cd_edgeFunction(atVerticies[0], atVerticies[1], atVerticies[2]);
-
-    /* min & max to only check pixels in a bounding box*/
-    // const int minX = cd_minNum(atVerticies[0].xPos, atVerticies[1].xPos, atVerticies[2].xPos);
-    // const int minY = cd_minNum(atVerticies[0].yPos, atVerticies[1].yPos, atVerticies[2].yPos);
-    // const int maxX = cd_maxNum(atVerticies[0].xPos, atVerticies[1].xPos, atVerticies[2].xPos);
-    // const int maxY = cd_maxNum(atVerticies[0].yPos, atVerticies[1].yPos, atVerticies[2].yPos);  
+    };  
 
     /* loop and set pixels inside triangle */
     for(int i = 0; i < iVertexCount; i += 3)
     {
+
+    /* edge function for entire triangle */
+    float ABC = (float)cd_edgeFunction(atVerticies[i], atVerticies[i + 1], atVerticies[i + 2]);
+
+    /* min & max to only check pixels in a bounding box*/
+    const int minX = cd_minNum(atVerticies[i].xPos, atVerticies[i + 1].xPos, atVerticies[i + 2].xPos);
+    const int minY = cd_minNum(atVerticies[i].yPos, atVerticies[i + 1].yPos, atVerticies[i + 2].yPos);
+    const int maxX = cd_maxNum(atVerticies[i].xPos, atVerticies[i + 1].xPos, atVerticies[i + 2].xPos);
+    const int maxY = cd_maxNum(atVerticies[i].yPos, atVerticies[i + 1].yPos, atVerticies[i + 2].yPos); 
+
         for(cd_P.yPos = 0; cd_P.yPos < 256; cd_P.yPos++)
         {
             for(cd_P.xPos = 0; cd_P.xPos < 256; cd_P.xPos++)
