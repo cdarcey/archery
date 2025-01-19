@@ -11,7 +11,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 
-int GLFWstuff(void)
+int main(void)
 {
     
     glfwSetErrorCallback(error_callback);
