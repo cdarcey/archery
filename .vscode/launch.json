@@ -8,9 +8,7 @@
       "console": "integratedTerminal",
       "request": "launch",
       "args": [
-        "-L${workspaceFolder}/lib",
-        "${workspaceFolder}/out/game.c",
-        "${workspaceFolder}/src/glad.c",
+
       ],
       "stopAtEntry": false,
       "cwd": "${workspaceFolder}/out/",
