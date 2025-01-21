@@ -18,14 +18,10 @@
 @set PL_RESULT=[1m[92mSuccessful.[0m
 
 @rem create main target output directoy
-@if not exist "./out" @mkdir "./out"
+@if not exist "../out" @mkdir "../out"
 
 @rem cleanup binaries if not hot reloading
-@if exist "./out/main.exe" del ".\out\main.exe"
-@if exist "./out/cpptest_*.pdb" del ".\out\cpptest_*.pdb"
-
-@rem create output directory
-@if not exist "./out" @mkdir "./out"
+@if exist "../out/main.exe" del "..\out\main.exe"
 
 @rem run compiler (and linker)
 @echo.
@@ -33,7 +29,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl main.c rasterize.c -Fe"./out/main.exe" -Fo"./out/" -Od -Zi -nologo -I"./includes" -MD -link -LIBPATH:"./lib"  -incremental:no 
+cl main.c rasterize.c -Fe"../out/main.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/stb" -MD -link -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
@@ -48,7 +44,7 @@ cl main.c rasterize.c -Fe"./out/main.exe" -Fo"./out/" -Od -Zi -nologo -I"./inclu
 @rem cleanup obj files
 :Cleanupcpptest
     @echo [1m[36mCleaning...[0m
-    @REM @del ".\out\*.obj"  > nul 2> nul
+    @del "..\out\*.obj"  > nul 2> nul
 
 
 @rem print results
