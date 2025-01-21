@@ -1,0 +1,7 @@
+
+# directories
+.vscode/
+out/
+
+# debug files
+src/*.pdb
