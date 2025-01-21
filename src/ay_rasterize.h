@@ -21,12 +21,8 @@ Index of this file:
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _ayFrameBufferData
-{
-    int            iWidth;
-    int            iHeight;
-    unsigned char* pucData;
-} ayFrameBufferData;
+typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
+typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
 typedef struct _ayColor
 {
@@ -49,14 +45,33 @@ typedef struct _ayVertex
 
 } ayVertex;
 
+// function pointers
+typedef ayColor (*ayPixelShader)(ayColor);
+typedef ayVertex (*ayVertexShader)(ayVertex);
+
 //-----------------------------------------------------------------------------
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-void ay_initialize_frame_buffer(ayFrameBufferData* ptData, int iWidth, int iHeight);
-void ay_output_frame_buffer(ayFrameBufferData* ptData);
-void ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor);
-void ay_set_pixel(ayFrameBufferData* ptData, ayVertex input, ayColor tColor);
-void ay_rasterize_triangles(ayFrameBufferData* ptData, ayVertex* atVerticies, int iVertexCount);
+// high level
+ayGraphicsData* initialize_graphics(void);
+
+// framebuffer ops
+ayFrameBufferData* ay_initialize_frame_buffer(int iWidth, int iHeight);
+void               ay_output_frame_buffer    (ayFrameBufferData*);
+void               ay_clear_frame_buffer     (ayFrameBufferData*, ayColor);
+
+// command buffer
+void ay_bind_frame_buffer (ayGraphicsData*, ayFrameBufferData*);
+void ay_bind_vertex_buffer(ayGraphicsData*, ayVertex*);
+void ay_bind_pixel_shader (ayGraphicsData*, ayPixelShader);
+void ay_bind_vertex_shader(ayGraphicsData*, ayVertexShader);
+
+// TODO: add first vertex
+void ay_draw(ayGraphicsData*, int iVertexCount);
+
+// TODO: index buffering
+// void ay_draw_indexed(ayGraphicsData*, int iIndexCount, int iFirstIndex);
+// void ay_bind_index_buffer(ayGraphicsData*, int*);
 
 #endif
