@@ -21,7 +21,7 @@
 @if not exist "../out" @mkdir "../out"
 
 @rem cleanup binaries if not hot reloading
-@if exist "../out/main.exe" del "..\out\main.exe"
+@if exist "../out/archery.exe" del "..\out\archery.exe"
 
 @rem run compiler (and linker)
 @echo.
@@ -29,7 +29,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl main.c rasterize.c -Fe"../out/main.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/stb" -MD -link -incremental:no 
+cl main.c ay_rasterize.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/stb" -MD -link -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

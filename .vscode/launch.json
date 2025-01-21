@@ -4,7 +4,7 @@
   {
     "name": "(Windows) Launch",
     "type": "cppvsdbg",
-      "program": "${workspaceFolder}/out/main.exe",
+      "program": "${workspaceFolder}/out/archery.exe",
       "console": "integratedTerminal",
       "request": "launch",
       "args": [
