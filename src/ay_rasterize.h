@@ -66,12 +66,10 @@ void ay_bind_frame_buffer (ayGraphicsData*, ayFrameBufferData*);
 void ay_bind_vertex_buffer(ayGraphicsData*, ayVertex*);
 void ay_bind_pixel_shader (ayGraphicsData*, ayPixelShader);
 void ay_bind_vertex_shader(ayGraphicsData*, ayVertexShader);
-
-// TODO: add first vertex
-void ay_draw(ayGraphicsData*, int iVertexCount);
+void ay_draw(ayGraphicsData*, int iVertexCount, int iFirstIndex);
 
 // TODO: index buffering
-// void ay_draw_indexed(ayGraphicsData*, int iIndexCount, int iFirstIndex);
-// void ay_bind_index_buffer(ayGraphicsData*, int*);
+void ay_draw_indexed(ayGraphicsData*, int iIndexCount, int iFirstIndex);
+void ay_bind_index_buffer(ayGraphicsData*, int*);
 
 #endif

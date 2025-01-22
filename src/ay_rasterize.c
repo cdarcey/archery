@@ -31,6 +31,7 @@ typedef struct _ayGraphicsData
     ayVertex*          atVerticies;
     ayPixelShader      tPixelShader;
     ayVertexShader     tVertexShader;
+    int*               tIndexBufferData;
 } ayGraphicsData;
 
 typedef struct _ayFrameBufferData
@@ -108,8 +109,12 @@ ay_bind_vertex_shader(ayGraphicsData* ptData, ayVertexShader tShader)
     ptData->tVertexShader = tShader;
 }
 
+void ay_bind_index_buffer(ayGraphicsData* ptData, int* tIndexBuffer)
+{
+    ptData->tIndexBufferData = tIndexBuffer;
+};
 void
-ay_draw(ayGraphicsData* ptData, int iVertexCount)
+ay_draw(ayGraphicsData* ptData, int iVertexCount, int iFirstVertex)
 {
     /* p usedfor iterating through pixels*/
     ayVertex vertexP = {
@@ -118,7 +123,7 @@ ay_draw(ayGraphicsData* ptData, int iVertexCount)
     };  
 
     /* loop and set pixels inside triangle */
-    for(int i = 0; i < iVertexCount; i += 3)
+    for(int i = iFirstVertex; i < iVertexCount; i += 3)
     {
 
         ayVertex tVertex0 = ptData->tVertexShader(ptData->atVerticies[i]);
@@ -127,6 +132,59 @@ ay_draw(ayGraphicsData* ptData, int iVertexCount)
 
         /* edge function for entire triangle */
         float ABC = (float)ay_edge_function(tVertex0, ptData->atVerticies[i + 1], ptData->atVerticies[i + 2]);
+
+        /* min & max to only check pixels in a bounding box*/
+        const int minX = ay_min_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
+        const int minY = ay_min_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos);
+        const int maxX = ay_max_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
+        const int maxY = ay_max_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos); 
+
+        for(vertexP.yPos = 0; vertexP.yPos < ptData->ptFrameBufferData->iHeight; vertexP.yPos++)
+        {
+            for(vertexP.xPos = 0; vertexP.xPos < ptData->ptFrameBufferData->iWidth; vertexP.xPos++)
+            {
+                const int ABP = ay_edge_function(tVertex0, tVertex1, vertexP);
+                const int BCP = ay_edge_function(tVertex1, tVertex2, vertexP);
+                const int CAP = ay_edge_function(tVertex2, tVertex0, vertexP);
+
+                const float weightA = BCP / ABC;
+                const float weightB = CAP / ABC;
+                const float weightC = ABP / ABC;
+
+                if(ABP >= 0 && BCP >= 0 && CAP >= 0)
+                {
+                    unsigned char red   = (unsigned char)((float)(tVertex0.r * weightA) + (float)(tVertex1.r * weightB) + (float)(tVertex2.r * weightC));
+                    unsigned char green = (unsigned char)((float)(tVertex0.g * weightA) + (float)(tVertex1.g * weightB) + (float)(tVertex2.g * weightC));
+                    unsigned char blue  = (unsigned char)((float)(tVertex0.b * weightA) + (float)(tVertex1.b * weightB) + (float)(tVertex2.b * weightC));
+
+                    ayColor colorP = {red, green, blue};
+                    ayColor tFinalColor = ptData->tPixelShader(colorP);
+                    ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                }
+            }
+        }
+    }
+}
+
+void
+ay_draw_indexed(ayGraphicsData* ptData, int iVertexCount, int iFirstVertex)
+{
+    /* p usedfor iterating through pixels*/
+    ayVertex vertexP = {
+        .xPos = 0,
+        .yPos = 0
+    };  
+
+    /* loop and set pixels inside triangle */
+    for(int i = iFirstVertex; i < iVertexCount; i += 3)
+    {
+
+        ayVertex tVertex0 = ptData->tVertexShader(ptData->atVerticies[ptData->tIndexBufferData[i]]);
+        ayVertex tVertex1 = ptData->tVertexShader(ptData->atVerticies[ptData->tIndexBufferData[i + 1]]);
+        ayVertex tVertex2 = ptData->tVertexShader(ptData->atVerticies[ptData->tIndexBufferData[i + 2]]);
+
+        /* edge function for entire triangle */
+        float ABC = (float)ay_edge_function(tVertex0, ptData->atVerticies[ptData->tIndexBufferData[i + 1]], ptData->atVerticies[ptData->tIndexBufferData[i + 2]]);
 
         /* min & max to only check pixels in a bounding box*/
         const int minX = ay_min_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);

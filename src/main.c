@@ -38,7 +38,7 @@ int main()
     };
 
     ayVertex b = {
-        .xPos = 75,
+        .xPos = 10,
         .yPos = 10,
         .r    = 0,
         .g    = 255,
@@ -52,8 +52,8 @@ int main()
         .b    = 255
     };
     ayVertex d = {
-        .xPos = 125,
-        .yPos = 175,
+        .xPos = 100,
+        .yPos = 10,
         .r    = 255,
         .g    = 0,
         .b    = 0
@@ -63,13 +63,13 @@ int main()
         .yPos = 125,
         .r    = 0,
         .g    = 255,
-        .b    = 255
+        .b    = 0
     };
     ayVertex f = {
         .xPos = 200,
         .yPos = 200,
         .r    = 0,
-        .g    = 255,
+        .g    = 0,
         .b    = 255
     };
 
@@ -81,11 +81,22 @@ int main()
     atVertexBuffer[4] = e;
     atVertexBuffer[5] = f;
 
+    int* tVertexBuffer = malloc(sizeof(int) * 6);
+    tVertexBuffer[0] = 0;
+    tVertexBuffer[1] = 1;
+    tVertexBuffer[2] = 2;
+    tVertexBuffer[3] = 1;
+    tVertexBuffer[4] = 3;
+    tVertexBuffer[5] = 2;
+
+
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, atVertexBuffer);
     ay_bind_pixel_shader(ptData, ayPixelShader_0);
     ay_bind_vertex_shader(ptData, ayVertexShader_0);
-    ay_draw(ptData, 3);
+    // ay_draw(ptData, 4, 3);
+    ay_bind_index_buffer(ptData, tVertexBuffer);
+    ay_draw_indexed(ptData, 6, 0);
 
     ay_output_frame_buffer(ptFrameBuffer);
 
