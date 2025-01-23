@@ -3,14 +3,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-ayColor ayPixelShader_0(ayColor tColor)
+ayColor ayPixelShader_0(ayVec2 tUV)
 {
-    return tColor;
+    return (ayColor){tUV.x * 255, tUV.y * 255, 255};
 }
 
-ayVertex ayVertexShader_0(ayVertex tVertex)
+ayVec2 ayVertexShader_0(ayVertex tVertex)
 {
-    return tVertex;
+    return (ayVec2){tVertex.xPos, tVertex.yPos};
 }
 
 int main()
@@ -30,71 +30,45 @@ int main()
     ayVertex VertexP = {0};
 
     ayVertex a = {
-        .xPos = 10,
-        .yPos = 100,
+        .xPos = -1.0f,
+        .yPos = -1.0f,
         .r    = 255,
         .g    = 0,
         .b    = 0
     };
 
     ayVertex b = {
-        .xPos = 10,
-        .yPos = 10,
+        .xPos = -1.0f,
+        .yPos = 1.0f,
         .r    = 0,
         .g    = 255,
         .b    = 0
     };
     ayVertex c = {
-        .xPos = 100,
-        .yPos = 100,
-        .r    = 0,
-        .g    = 0,
-        .b    = 255
-    };
-    ayVertex d = {
-        .xPos = 100,
-        .yPos = 10,
-        .r    = 255,
-        .g    = 0,
-        .b    = 0
-    };
-    ayVertex e = {
-        .xPos = 200,
-        .yPos = 125,
-        .r    = 0,
-        .g    = 255,
-        .b    = 0
-    };
-    ayVertex f = {
-        .xPos = 200,
-        .yPos = 200,
+        .xPos = 1.0f,
+        .yPos = 1.0f,
         .r    = 0,
         .g    = 0,
         .b    = 255
     };
 
-    ayVertex* atVertexBuffer = malloc(sizeof(ayVertex) * 6);
+
+    ayVertex* atVertexBuffer = malloc(sizeof(ayVertex) * 3);
     atVertexBuffer[0] = a;
     atVertexBuffer[1] = b;
     atVertexBuffer[2] = c;
-    atVertexBuffer[3] = d;
-    atVertexBuffer[4] = e;
-    atVertexBuffer[5] = f;
 
-    int* tVertexBuffer = malloc(sizeof(int) * 6);
+    int* tVertexBuffer = malloc(sizeof(int) * 3);
     tVertexBuffer[0] = 0;
-    tVertexBuffer[1] = 1;
-    tVertexBuffer[2] = 2;
-    tVertexBuffer[3] = 1;
-    tVertexBuffer[4] = 3;
-    tVertexBuffer[5] = 2;
+    tVertexBuffer[1] = 2;
+    tVertexBuffer[2] = 1;
 
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, atVertexBuffer);
     ay_bind_pixel_shader(ptData, ayPixelShader_0);
     ay_bind_vertex_shader(ptData, ayVertexShader_0);
     ay_bind_index_buffer(ptData, tVertexBuffer);
-    ay_draw_indexed(ptData, 0, 6);
+    ay_draw_indexed(ptData, 0, 3);
 
     ay_output_frame_buffer(ptFrameBuffer);
 

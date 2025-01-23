@@ -46,9 +46,9 @@ typedef struct _ayFrameBufferData
 //-----------------------------------------------------------------------------
 
 static inline int
-ay_edge_function(ayVertex one, ayVertex two, ayVertex three)
+ay_edge_function(ayVec2 one, ayVec2 two, ayVec2 three)
 {
-    return(two.xPos - one.xPos) * (three.yPos - one.yPos) - (two.yPos - one.yPos) * (three.xPos - one.xPos);
+    return(two.x - one.x) * (three.y - one.y) - (two.y - one.y) * (three.x - one.x);
 };
 
 static inline int
@@ -71,7 +71,7 @@ ay_min_num(int a, int b, int c)
     return c;
 };
 
-static void ay_set_pixel(ayFrameBufferData* ptData, ayVertex input, ayColor tColor);
+static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayColor tColor);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -119,9 +119,9 @@ void
 ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 {
     /* p usedfor iterating through pixels*/
-    ayVertex vertexP = {
-        .xPos = 0,
-        .yPos = 0
+    ayVec2 vertexP = {
+        .x = 0,
+        .y = 0
     };  
 
     /* loop and set pixels inside triangle */
@@ -132,22 +132,37 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         const uint32_t uIndex1 = uFirstVertex + i + 1;
         const uint32_t uIndex2 = uFirstVertex + i + 2;
 
-        ayVertex tVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
-        ayVertex tVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
-        ayVertex tVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+        // TODO: input assembler stage
+
+        // vertex shader stage
+        ayVec2 tOriginalVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
+        ayVec2 tOriginalVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
+        ayVec2 tOriginalVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+
+        ayVec2 tVertex0 = tOriginalVertex0;
+        ayVec2 tVertex1 = tOriginalVertex1;
+        ayVec2 tVertex2 = tOriginalVertex2;
+
+        tVertex0.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex0.x;
+        tVertex1.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex1.x;
+        tVertex2.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex2.x;
+
+        tVertex0.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex0.y;
+        tVertex1.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex1.y;
+        tVertex2.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex2.y;
 
         /* edge function for entire triangle */
-        float ABC = (float)ay_edge_function(tVertex0, ptData->atVerticies[uIndex1], ptData->atVerticies[uIndex2]);
+        float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         /* min & max to only check pixels in a bounding box*/
-        const int minX = ay_min_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
-        const int minY = ay_min_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos);
-        const int maxX = ay_max_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
-        const int maxY = ay_max_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos); 
+        const int minX = ay_min_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int minY = ay_min_num(tVertex0.y, tVertex1.y, tVertex2.y);
+        const int maxX = ay_max_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int maxY = ay_max_num(tVertex0.y, tVertex1.y, tVertex2.y); 
 
-        for(vertexP.yPos = 0; vertexP.yPos < ptData->ptFrameBufferData->uHeight; vertexP.yPos++)
+        for(vertexP.y = 0; vertexP.y < ptData->ptFrameBufferData->uHeight; vertexP.y++)
         {
-            for(vertexP.xPos = 0; vertexP.xPos < ptData->ptFrameBufferData->uWidth; vertexP.xPos++)
+            for(vertexP.x = 0; vertexP.x < ptData->ptFrameBufferData->uWidth; vertexP.x++)
             {
                 const int ABP = ay_edge_function(tVertex0, tVertex1, vertexP);
                 const int BCP = ay_edge_function(tVertex1, tVertex2, vertexP);
@@ -159,12 +174,10 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 
                 if(ABP >= 0 && BCP >= 0 && CAP >= 0)
                 {
-                    unsigned char red   = (unsigned char)((float)(tVertex0.r * weightA) + (float)(tVertex1.r * weightB) + (float)(tVertex2.r * weightC));
-                    unsigned char green = (unsigned char)((float)(tVertex0.g * weightA) + (float)(tVertex1.g * weightB) + (float)(tVertex2.g * weightC));
-                    unsigned char blue  = (unsigned char)((float)(tVertex0.b * weightA) + (float)(tVertex1.b * weightB) + (float)(tVertex2.b * weightC));
-
-                    ayColor colorP = {red, green, blue};
-                    ayColor tFinalColor = ptData->tPixelShader(colorP);
+                    float fUVX   = ((float)(tOriginalVertex0.x * weightA) + (float)(tOriginalVertex1.x * weightB) + (float)(tOriginalVertex2.x * weightC));
+                    float fUVY   = ((float)(tOriginalVertex0.y* weightA) + (float)(tOriginalVertex1.y * weightB) + (float)(tOriginalVertex2.y * weightC));
+    
+                    ayColor tFinalColor = ptData->tPixelShader((ayVec2){fUVX, fUVY});
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -176,9 +189,9 @@ void
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
 
-    ayVertex vertexP = {
-        .xPos = 0,
-        .yPos = 0
+    ayVec2 vertexP = {
+        .x = 0,
+        .y = 0
     };  
 
     for(uint32_t i = 0; i < uIndexCount; i += 3)
@@ -188,22 +201,34 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
-        ayVertex tVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
-        ayVertex tVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
-        ayVertex tVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+        ayVec2 tOriginalVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
+        ayVec2 tOriginalVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
+        ayVec2 tOriginalVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+
+        ayVec2 tVertex0 = tOriginalVertex0;
+        ayVec2 tVertex1 = tOriginalVertex1;
+        ayVec2 tVertex2 = tOriginalVertex2;
+
+        tVertex0.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex0.x;
+        tVertex1.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex1.x;
+        tVertex2.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex2.x;
+
+        tVertex0.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex0.y;
+        tVertex1.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex1.y;
+        tVertex2.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex2.y;
 
         /* edge function for entire triangle */
-        float ABC = (float)ay_edge_function(tVertex0, ptData->atVerticies[uIndex1], ptData->atVerticies[uIndex2]);
+        float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         /* min & max to only check pixels in a bounding box*/
-        const int minX = ay_min_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
-        const int minY = ay_min_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos);
-        const int maxX = ay_max_num(tVertex0.xPos, tVertex1.xPos, tVertex2.xPos);
-        const int maxY = ay_max_num(tVertex0.yPos, tVertex1.yPos, tVertex2.yPos); 
+        const int minX = ay_min_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int minY = ay_min_num(tVertex0.y, tVertex1.y, tVertex2.y);
+        const int maxX = ay_max_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int maxY = ay_max_num(tVertex0.y, tVertex1.y, tVertex2.y); 
 
-        for(vertexP.yPos = 0; vertexP.yPos < ptData->ptFrameBufferData->uHeight; vertexP.yPos++)
+        for(vertexP.y = 0; vertexP.y < ptData->ptFrameBufferData->uHeight; vertexP.y++)
         {
-            for(vertexP.xPos = 0; vertexP.xPos < ptData->ptFrameBufferData->uWidth; vertexP.xPos++)
+            for(vertexP.x = 0; vertexP.x < ptData->ptFrameBufferData->uWidth; vertexP.x++)
             {
                 const int ABP = ay_edge_function(tVertex0, tVertex1, vertexP);
                 const int BCP = ay_edge_function(tVertex1, tVertex2, vertexP);
@@ -215,12 +240,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
                 if(ABP >= 0 && BCP >= 0 && CAP >= 0)
                 {
-                    unsigned char red   = (unsigned char)((float)(tVertex0.r * weightA) + (float)(tVertex1.r * weightB) + (float)(tVertex2.r * weightC));
-                    unsigned char green = (unsigned char)((float)(tVertex0.g * weightA) + (float)(tVertex1.g * weightB) + (float)(tVertex2.g * weightC));
-                    unsigned char blue  = (unsigned char)((float)(tVertex0.b * weightA) + (float)(tVertex1.b * weightB) + (float)(tVertex2.b * weightC));
-
-                    ayColor colorP = {red, green, blue};
-                    ayColor tFinalColor = ptData->tPixelShader(colorP);
+                    float fUVX   = ((float)(tOriginalVertex0.x * weightA) + (float)(tOriginalVertex1.x * weightB) + (float)(tOriginalVertex2.x * weightC));
+                    float fUVY   = ((float)(tOriginalVertex0.y* weightA) + (float)(tOriginalVertex1.y * weightB) + (float)(tOriginalVertex2.y * weightC));
+    
+                    ayColor tFinalColor = ptData->tPixelShader((ayVec2){fUVX, fUVY});
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -257,7 +280,7 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor)
     {
         for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++)
         {
-            ay_set_pixel(ptData, (ayVertex){iColumn, iRow}, tColor);
+            ay_set_pixel(ptData, (ayVec2){iColumn, iRow}, tColor);
         }
     }
 
@@ -268,23 +291,23 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor)
 //-----------------------------------------------------------------------------
 
 static void
-ay_set_pixel(ayFrameBufferData* ptData, ayVertex input, ayColor tColor)
+ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayColor tColor)
 {
 
-    if(input.xPos < 0)
+    if(input.x < 0)
         return;
 
-    if(input.yPos < 0)
+    if(input.y < 0)
         return;
 
-    if(input.xPos >= ptData->uWidth)
+    if(input.x >= ptData->uWidth)
         return;
 
-    if(input.yPos >= ptData->uHeight)
+    if(input.y >= ptData->uHeight)
         return;
 
-    int iRowOffset = ptData->uWidth * 3 * input.yPos;
-    int iPixelStart = iRowOffset + input.xPos * 3;
+    int iRowOffset = ptData->uWidth * 3 * input.y;
+    int iPixelStart = iRowOffset + input.x * 3;
 
     ptData->pucData[iPixelStart + 0] = tColor.r;
     ptData->pucData[iPixelStart + 1] = tColor.g;

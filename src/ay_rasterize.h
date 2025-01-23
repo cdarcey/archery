@@ -30,6 +30,12 @@ Index of this file:
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
+typedef struct _ayVec2
+{
+    float x;
+    float y;
+} ayVec2;
+
 typedef struct _ayColor
 {
     unsigned char r;
@@ -52,8 +58,8 @@ typedef struct _ayVertex
 } ayVertex;
 
 // function pointers
-typedef ayColor (*ayPixelShader)(ayColor);
-typedef ayVertex (*ayVertexShader)(ayVertex);
+typedef ayColor (*ayPixelShader)(ayVec2);
+typedef ayVec2 (*ayVertexShader)(ayVertex);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
