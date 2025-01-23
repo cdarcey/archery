@@ -18,6 +18,12 @@ Index of this file:
 #define AY_RASTERIZE_H
 
 //-----------------------------------------------------------------------------
+// [SECTION] includes
+//-----------------------------------------------------------------------------
+
+#include <stdint.h> // uint*_t
+
+//-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
@@ -53,23 +59,30 @@ typedef ayVertex (*ayVertexShader)(ayVertex);
 // [SECTION] public api
 //-----------------------------------------------------------------------------
 
-// high level
+//-------------------------------setup-----------------------------------------
+
 ayGraphicsData* initialize_graphics(void);
 
 // framebuffer ops
-ayFrameBufferData* ay_initialize_frame_buffer(int iWidth, int iHeight);
+ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight);
 void               ay_output_frame_buffer    (ayFrameBufferData*);
 void               ay_clear_frame_buffer     (ayFrameBufferData*, ayColor);
 
-// command buffer
-void ay_bind_frame_buffer (ayGraphicsData*, ayFrameBufferData*);
+//------------------------------commands---------------------------------------
+
+// frame buffers
+void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
+
+// buffers
 void ay_bind_vertex_buffer(ayGraphicsData*, ayVertex*);
+void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
+
+// shaders
 void ay_bind_pixel_shader (ayGraphicsData*, ayPixelShader);
 void ay_bind_vertex_shader(ayGraphicsData*, ayVertexShader);
-void ay_draw(ayGraphicsData*, int iVertexCount, int iFirstIndex);
 
-// TODO: index buffering
-void ay_draw_indexed(ayGraphicsData*, int iIndexCount, int iFirstIndex);
-void ay_bind_index_buffer(ayGraphicsData*, int*);
+// draw calls
+void ay_draw(ayGraphicsData*, uint32_t uFirstVertex, uint32_t uVertexCount);
+void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
 
 #endif

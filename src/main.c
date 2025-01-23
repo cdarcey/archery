@@ -89,14 +89,12 @@ int main()
     tVertexBuffer[4] = 3;
     tVertexBuffer[5] = 2;
 
-
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, atVertexBuffer);
     ay_bind_pixel_shader(ptData, ayPixelShader_0);
     ay_bind_vertex_shader(ptData, ayVertexShader_0);
-    // ay_draw(ptData, 4, 3);
     ay_bind_index_buffer(ptData, tVertexBuffer);
-    ay_draw_indexed(ptData, 6, 0);
+    ay_draw_indexed(ptData, 0, 6);
 
     ay_output_frame_buffer(ptFrameBuffer);
 
