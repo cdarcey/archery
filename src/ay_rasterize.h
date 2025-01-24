@@ -51,15 +51,42 @@ typedef struct _ayVertex
     int yPos;
 
     // color
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
+    // unsigned char r;
+    // unsigned char g;
+    // unsigned char b;
 
 } ayVertex;
 
+typedef struct _ayPixelShaderBuiltIns
+{
+    ayVec2 tUV;
+} ayPixelShaderBuiltIns;
+
+typedef struct _ayVertexShaderBuiltIns
+{
+    uint32_t uVertexID;
+} ayVertexShaderBuiltIns;
+
+typedef struct _ayVaryingData
+{
+    // TODO: add system in here for varying layout
+    //       so you can interpolate them correctly
+    char acVaryingData[256]; // this should be cast to correct types once you decide on layout system
+} ayVaryingData;
+
 // function pointers
-typedef ayColor (*ayPixelShader)(ayVec2);
-typedef ayVec2 (*ayVertexShader)(ayVertex);
+typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
+typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
+
+typedef struct _ayPipeline
+{
+    ayVertexShader tVertexShader;
+    ayPixelShader  tPixelShader;
+
+    // TODO:
+    //   * vertex layout
+} ayPipeline;
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
@@ -80,8 +107,7 @@ void               ay_clear_frame_buffer     (ayFrameBufferData*, ayColor);
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 
 // buffers
-void ay_bind_vertex_buffer(ayGraphicsData*, ayVertex*);
-void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
+void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // shaders
 void ay_bind_pixel_shader (ayGraphicsData*, ayPixelShader);

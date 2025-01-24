@@ -29,8 +29,7 @@ typedef struct _ayGraphicsData
 {
     ayFrameBufferData* ptFrameBufferData;
     ayVertex*          atVerticies;
-    ayPixelShader      tPixelShader;
-    ayVertexShader     tVertexShader;
+    ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
 } ayGraphicsData;
 
@@ -98,15 +97,9 @@ ay_bind_vertex_buffer(ayGraphicsData* ptData, ayVertex* atVerticies)
 }
 
 void
-ay_bind_pixel_shader(ayGraphicsData* ptData, ayPixelShader tShader)
+ay_bind_pipeline(ayGraphicsData* ptData, ayPipeline* ptPipeline)
 {
-    ptData->tPixelShader = tShader;
-}
-
-void
-ay_bind_vertex_shader(ayGraphicsData* ptData, ayVertexShader tShader)
-{
-    ptData->tVertexShader = tShader;
+    ptData->ptPipeline = ptPipeline;
 }
 
 void
@@ -135,9 +128,23 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         // TODO: input assembler stage
 
         // vertex shader stage
-        ayVec2 tOriginalVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
-        ayVec2 tOriginalVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
-        ayVec2 tOriginalVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+        ayVertexShaderBuiltIns tVSBuiltIns0 = {
+            .uVertexID = uIndex0
+        };
+        ayVaryingData tVaryingData0 = {0};
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &ptData->atVerticies[uIndex0], &tVaryingData0);
+
+        ayVertexShaderBuiltIns tVSBuiltIns1 = {
+            .uVertexID = uIndex1
+        };
+        ayVaryingData tVaryingData1 = {0};
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &ptData->atVerticies[uIndex1], &tVaryingData1);
+
+        ayVertexShaderBuiltIns tVSBuiltIns2 = {
+            .uVertexID = uIndex2
+        };
+        ayVaryingData tVaryingData2 = {0};
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &ptData->atVerticies[uIndex2], &tVaryingData2);
 
         ayVec2 tVertex0 = tOriginalVertex0;
         ayVec2 tVertex1 = tOriginalVertex1;
@@ -177,7 +184,11 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                     float fUVX   = ((float)(tOriginalVertex0.x * weightA) + (float)(tOriginalVertex1.x * weightB) + (float)(tOriginalVertex2.x * weightC));
                     float fUVY   = ((float)(tOriginalVertex0.y* weightA) + (float)(tOriginalVertex1.y * weightB) + (float)(tOriginalVertex2.y * weightC));
     
-                    ayColor tFinalColor = ptData->tPixelShader((ayVec2){fUVX, fUVY});
+                    ayPixelShaderBuiltIns tBuiltIns = {
+                        .tUV = {fUVX, fUVY}
+                    };
+
+                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, NULL);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -201,9 +212,24 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
-        ayVec2 tOriginalVertex0 = ptData->tVertexShader(ptData->atVerticies[uIndex0]);
-        ayVec2 tOriginalVertex1 = ptData->tVertexShader(ptData->atVerticies[uIndex1]);
-        ayVec2 tOriginalVertex2 = ptData->tVertexShader(ptData->atVerticies[uIndex2]);
+        // vertex shader stage
+        ayVertexShaderBuiltIns tVSBuiltIns0 = {
+            .uVertexID = uIndex0
+        };
+        ayVaryingData tVaryingData0 = {0};
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &ptData->atVerticies[uIndex0], &tVaryingData0);
+
+        ayVertexShaderBuiltIns tVSBuiltIns1 = {
+            .uVertexID = uIndex1
+        };
+        ayVaryingData tVaryingData1 = {0};
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &ptData->atVerticies[uIndex1], &tVaryingData1);
+
+        ayVertexShaderBuiltIns tVSBuiltIns2 = {
+            .uVertexID = uIndex2
+        };
+        ayVaryingData tVaryingData2 = {0};
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &ptData->atVerticies[uIndex2], &tVaryingData2);
 
         ayVec2 tVertex0 = tOriginalVertex0;
         ayVec2 tVertex1 = tOriginalVertex1;
@@ -243,7 +269,11 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     float fUVX   = ((float)(tOriginalVertex0.x * weightA) + (float)(tOriginalVertex1.x * weightB) + (float)(tOriginalVertex2.x * weightC));
                     float fUVY   = ((float)(tOriginalVertex0.y* weightA) + (float)(tOriginalVertex1.y * weightB) + (float)(tOriginalVertex2.y * weightC));
     
-                    ayColor tFinalColor = ptData->tPixelShader((ayVec2){fUVX, fUVY});
+                    ayPixelShaderBuiltIns tBuiltIns = {
+                        .tUV = {fUVX, fUVY}
+                    };
+
+                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, NULL);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }

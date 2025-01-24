@@ -3,14 +3,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-ayColor ayPixelShader_0(ayVec2 tUV)
+ayColor
+ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
 {
-    return (ayColor){tUV.x * 255, tUV.y * 255, 255};
+    return (ayColor){tBuiltIns.tUV.x * 255, tBuiltIns.tUV.y * 255, 255};
 }
 
-ayVec2 ayVertexShader_0(ayVertex tVertex)
+ayVec2
+ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
-    return (ayVec2){tVertex.xPos, tVertex.yPos};
+    ayVertex* ptVertex = (ayVertex*)pVertexDataIn;
+    return (ayVec2){ptVertex->xPos, ptVertex->yPos};
 }
 
 int main()
@@ -31,25 +34,16 @@ int main()
 
     ayVertex a = {
         .xPos = -1.0f,
-        .yPos = -1.0f,
-        .r    = 255,
-        .g    = 0,
-        .b    = 0
+        .yPos = -1.0f
     };
 
     ayVertex b = {
         .xPos = -1.0f,
-        .yPos = 1.0f,
-        .r    = 0,
-        .g    = 255,
-        .b    = 0
+        .yPos = 1.0f
     };
     ayVertex c = {
         .xPos = 1.0f,
-        .yPos = 1.0f,
-        .r    = 0,
-        .g    = 0,
-        .b    = 255
+        .yPos = 1.0f
     };
 
 
@@ -63,10 +57,14 @@ int main()
     tVertexBuffer[1] = 2;
     tVertexBuffer[2] = 1;
 
+    ayPipeline tPipeline = {
+        .tPixelShader = ayPixelShader_0,
+        .tVertexShader = ayVertexShader_0
+    };
+
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, atVertexBuffer);
-    ay_bind_pixel_shader(ptData, ayPixelShader_0);
-    ay_bind_vertex_shader(ptData, ayVertexShader_0);
+    ay_bind_pipeline(ptData, &tPipeline);
     ay_bind_index_buffer(ptData, tVertexBuffer);
     ay_draw_indexed(ptData, 0, 3);
 
