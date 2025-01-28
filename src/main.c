@@ -6,14 +6,49 @@
 ayColor
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
 {
-    return (ayColor){tBuiltIns.tUV.x * 255, tBuiltIns.tUV.y * 255, 255};
+    const ayVec4* ptColor = (ayVec4*)&ptVaryingDataIn->acVaryingData[0];
+
+    return (ayColor){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255};
+
+    // return (ayColor){tBuiltIns.tUV.x * 255, tBuiltIns.tUV.y * 255, 255};
 }
 
 ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
-    ayVertex* ptVertex = (ayVertex*)pVertexDataIn;
-    return (ayVec2){ptVertex->xPos, ptVertex->yPos};
+
+    // ayVec2 tPos   = ay_get_vertex_attrib(pVertexDataIn, AY_VERTEX_LAYOUT_TYPE_VEC2, 0);
+    // ayVec4 tColor = ay_get_vertex_attrib(pVertexDataIn, AY_VERTEX_LAYOUT_TYPE_VEC4, 1);
+
+    ayVec2 tPos = *(ayVec2*)pVertexDataIn;
+
+    ayVec4* ptColor = (ayVec4*)&ptVaryingDataOut->acVaryingData[0];
+
+    if(tBuiltIns.uVertexID == 0)
+    {
+        ptColor->x = 1.0f;
+        // ptColor->y = 1.0f;
+        // ptColor->z = 1.0f;
+        ptColor->w = 1.0f;
+    }
+
+    else if(tBuiltIns.uVertexID == 1)
+    {
+        // ptColor->x = 1.0f;
+        ptColor->y = 1.0f;
+        // ptColor->z = 1.0f;
+        ptColor->w = 1.0f;
+    }
+
+    else if(tBuiltIns.uVertexID == 2)
+    {
+        // ptColor->x = 1.0f;
+        // ptColor->y = 1.0f;
+        ptColor->z = 1.0f;
+        ptColor->w = 1.0f;
+    }
+    
+    return (ayVec2){tPos.x, tPos.y};
 }
 
 int main()
@@ -30,42 +65,26 @@ int main()
     ay_clear_frame_buffer(ptFrameBuffer, (ayColor){255, 255, 255});
 
     /* vertices */
-    ayVertex VertexP = {0};
-
-    ayVertex a = {
-        .xPos = -1.0f,
-        .yPos = -1.0f
+    float afVertexBuffer[6] = { // x, y
+        -1.0f, -1.0f,
+        -1.0f,  1.0f,
+         1.0f,  1.0f
     };
 
-    ayVertex b = {
-        .xPos = -1.0f,
-        .yPos = 1.0f
+    uint32_t atIndexBuffer[3] = { 
+        0, 2, 1 // triangle 0
     };
-    ayVertex c = {
-        .xPos = 1.0f,
-        .yPos = 1.0f
-    };
-
-
-    ayVertex* atVertexBuffer = malloc(sizeof(ayVertex) * 3);
-    atVertexBuffer[0] = a;
-    atVertexBuffer[1] = b;
-    atVertexBuffer[2] = c;
-
-    int* tVertexBuffer = malloc(sizeof(int) * 3);
-    tVertexBuffer[0] = 0;
-    tVertexBuffer[1] = 2;
-    tVertexBuffer[2] = 1;
 
     ayPipeline tPipeline = {
         .tPixelShader = ayPixelShader_0,
-        .tVertexShader = ayVertexShader_0
+        .tVertexShader = ayVertexShader_0,
+        .szVertexStride = sizeof(float) * 2
     };
 
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
-    ay_bind_vertex_buffer(ptData, atVertexBuffer);
+    ay_bind_vertex_buffer(ptData, afVertexBuffer);
     ay_bind_pipeline(ptData, &tPipeline);
-    ay_bind_index_buffer(ptData, tVertexBuffer);
+    ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 3);
 
     ay_output_frame_buffer(ptFrameBuffer);

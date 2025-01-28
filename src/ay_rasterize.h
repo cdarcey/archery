@@ -22,6 +22,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 #include <stdint.h> // uint*_t
+#include <stddef.h> // size_t
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -36,26 +37,27 @@ typedef struct _ayVec2
     float y;
 } ayVec2;
 
+typedef struct _ayVec3
+{
+    float x;
+    float y;
+    float z;
+} ayVec3;
+
+typedef struct _ayVec4
+{
+    float x;
+    float y;
+    float z;
+    float w;
+} ayVec4;
+
 typedef struct _ayColor
 {
     unsigned char r;
     unsigned char g;
     unsigned char b;
 } ayColor;
-
-typedef struct _ayVertex
-{
-
-    // position
-    int xPos;
-    int yPos;
-
-    // color
-    // unsigned char r;
-    // unsigned char g;
-    // unsigned char b;
-
-} ayVertex;
 
 typedef struct _ayPixelShaderBuiltIns
 {
@@ -71,7 +73,7 @@ typedef struct _ayVaryingData
 {
     // TODO: add system in here for varying layout
     //       so you can interpolate them correctly
-    char acVaryingData[256]; // this should be cast to correct types once you decide on layout system
+    char acVaryingData[512]; // this should be cast to correct types once you decide on layout system
 } ayVaryingData;
 
 // function pointers
@@ -83,8 +85,9 @@ typedef struct _ayPipeline
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
-    // TODO:
-    //   * vertex layout
+    // TODO: vertex layout
+    size_t szVertexStride;
+    
 } ayPipeline;
 
 
@@ -107,11 +110,11 @@ void               ay_clear_frame_buffer     (ayFrameBufferData*, ayColor);
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 
 // buffers
-void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
+void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
+void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
 
-// shaders
-void ay_bind_pixel_shader (ayGraphicsData*, ayPixelShader);
-void ay_bind_vertex_shader(ayGraphicsData*, ayVertexShader);
+// pipelines
+void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
 void ay_draw(ayGraphicsData*, uint32_t uFirstVertex, uint32_t uVertexCount);
