@@ -17,7 +17,7 @@ ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
 
-    // ayVec2 tPos   = ay_get_vertex_attrib(pVertexDataIn, AY_VERTEX_LAYOUT_TYPE_VEC2, 0);
+    // ayVec2 tPos;
     // ayVec4 tColor = ay_get_vertex_attrib(pVertexDataIn, AY_VERTEX_LAYOUT_TYPE_VEC4, 1);
 
     ayVec2 tPos = *(ayVec2*)pVertexDataIn;
@@ -56,7 +56,7 @@ int main()
 
     ayGraphicsData* ptData = initialize_graphics();
 
-    /* code timing start */
+    // code timing start 
     clock_t start, end;
     double cpu_time_used;
     start = clock();
@@ -64,7 +64,9 @@ int main()
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(256, 256);
     ay_clear_frame_buffer(ptFrameBuffer, (ayColor){255, 255, 255});
 
-    /* vertices */
+
+
+    // vertices 
     float afVertexBuffer[6] = { // x, y
         -1.0f, -1.0f,
         -1.0f,  1.0f,
@@ -89,7 +91,7 @@ int main()
 
     ay_output_frame_buffer(ptFrameBuffer);
 
-    /* code timing end */
+    // code timing end 
     end = clock();
     cpu_time_used = ((double) (end - start)) / CLOCKS_PER_SEC;
     printf("Time taken: %f seconds\n", cpu_time_used);

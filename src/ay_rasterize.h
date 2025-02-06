@@ -71,6 +71,10 @@ typedef struct _ayVertexShaderBuiltIns
 
 typedef struct _ayVaryingData
 {
+
+    // layout info
+
+
     // TODO: add system in here for varying layout
     //       so you can interpolate them correctly
     char acVaryingData[512]; // this should be cast to correct types once you decide on layout system
@@ -80,16 +84,36 @@ typedef struct _ayVaryingData
 typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
 
+typedef enum _ayAttribType
+{
+    AY_POSITION,
+    AY_COLOR
+} ayAttribType;
+
+typedef struct _ayAttribDesc
+{
+    ayAttribType AY_POSITION;
+    size_t       attribOffset;
+} ayAttribDesc;
+
+typedef struct _ayVertexLayout
+{
+    ayAttribDesc tAttribs;
+    int          iNumElements;
+} ayVertexLayout;
+
+
 typedef struct _ayPipeline
 {
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
     // TODO: vertex layout
-    size_t szVertexStride;
+    
+    
+    size_t            szVertexStride;
     
 } ayPipeline;
-
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api
