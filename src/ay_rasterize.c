@@ -250,17 +250,19 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
         ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
 
+        // frame buffer space
+
         ayVec2 tVertex0 = tOriginalVertex0;
         ayVec2 tVertex1 = tOriginalVertex1;
         ayVec2 tVertex2 = tOriginalVertex2;
 
-        tVertex0.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex0.x;
-        tVertex1.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex1.x;
-        tVertex2.x = (-0.5f + ptData->ptFrameBufferData->uWidth * 2.0f) / tVertex2.x;
+        tVertex0.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex0.x);
+        tVertex1.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex1.x);
+        tVertex2.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex2.x);
 
-        tVertex0.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex0.y;
-        tVertex1.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex1.y;
-        tVertex2.y = -0.5f + (ptData->ptFrameBufferData->uHeight * 2.0f) / tVertex2.y;
+        tVertex0.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex0.y);
+        tVertex1.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex1.y);
+        tVertex2.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex2.y);
 
         /* edge function for entire triangle */
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
@@ -285,19 +287,30 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
                 if(ABP >= 0 && BCP >= 0 && CAP >= 0)
                 {
-                    float fUVX   = ((float)(tOriginalVertex0.x * weightA) + (float)(tOriginalVertex1.x * weightB) + (float)(tOriginalVertex2.x * weightC));
-                    float fUVY   = ((float)(tOriginalVertex0.y * weightA) + (float)(tOriginalVertex1.y * weightB) + (float)(tOriginalVertex2.y * weightC));
-    
+
                     ayPixelShaderBuiltIns tBuiltIns = {
-                        .tUV = {fUVX, fUVY}
+                        .tUV = {vertexP.x, vertexP.y}
+                    };
+
+                    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+                    const ayColor* ptColor0 = (ayColor*)&tVaryingData0.acVaryingData[0];
+                    const ayColor* ptColor1 = (ayColor*)&tVaryingData1.acVaryingData[0];
+                    const ayColor* ptColor2 = (ayColor*)&tVaryingData2.acVaryingData[0];
+
+                    ayColor tBlendedColor = {
+                        .r = ((float)(ptColor0->r * weightA) + (float)(ptColor1->r * weightB) + (float)(ptColor2->r * weightC)),
+                        .g = ((float)(ptColor0->g * weightA) + (float)(ptColor1->g * weightB) + (float)(ptColor2->g * weightC)),
+                        .b = ((float)(ptColor0->b * weightA) + (float)(ptColor1->b * weightB) + (float)(ptColor2->b * weightC))
                     };
 
                     // Varying system
-                    ayVaryingData blendedVaryingData = {
-                        blendedVaryingData.acVaryingData
-                    };
+                    ayVaryingData blendedVaryingData = {0};
 
-                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &tVaryingData0);
+                    memcpy(&blendedVaryingData.acVaryingData[0], &tBlendedColor, sizeof(ayColor));
+                    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+                    // run pixel shader
+                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &blendedVaryingData);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
