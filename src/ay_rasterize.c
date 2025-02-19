@@ -293,14 +293,14 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     };
 
                     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    const ayVec4* ptColor0 = (ayVec4*)&tVaryingData0.acVaryingData[0];
-                    const ayVec4* ptColor1 = (ayVec4*)&tVaryingData1.acVaryingData[sizeof(float)];
-                    const ayVec4* ptColor2 = (ayVec4*)&tVaryingData2.acVaryingData[sizeof(float) * 2];
+                    const ayVec4* ptColor0 = (ayVec4*)(char*)&tVaryingData0.acVaryingData[0];
+                    const ayVec4* ptColor1 = (ayVec4*)(char*)&tVaryingData1.acVaryingData[0];
+                    const ayVec4* ptColor2 = (ayVec4*)(char*)&tVaryingData2.acVaryingData[0];
 
-                    ayColor tBlendedColor = {
-                        .r = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
-                        .g = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
-                        .b = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC))
+                    ayVec4 tBlendedColor = {
+                        .x = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
+                        .y = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
+                        .z = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC))
                     };
 
                     // Varying system

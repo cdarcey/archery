@@ -26,7 +26,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->x = 1.0f;
         ptColor->y = 0;
         ptColor->z = 0;
-        ptColor->w = 0;
+        ptColor->w = 1.0f;
     }
 
     else if(tBuiltIns.uVertexID == 1)
@@ -34,7 +34,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->x = 0;
         ptColor->y = 1.0f;
         ptColor->z = 0;
-        ptColor->w = 0;
+        ptColor->w = 1.0f;
     }
 
     else if(tBuiltIns.uVertexID == 2)
@@ -42,7 +42,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->x = 0;
         ptColor->y = 0;
         ptColor->z = 1.0f;
-        ptColor->w = 0;
+        ptColor->w = 1.0f;
     }
     
     return (ayVec2){tPos.x, tPos.y};
