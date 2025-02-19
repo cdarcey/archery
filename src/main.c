@@ -7,7 +7,8 @@ ayColor
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
 {
     const ayVec4* ptColor = (ayVec4*)&ptVaryingDataIn->acVaryingData[0];
-    return (ayColor){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255};
+    float* pfData2 = (float*)&ptVaryingDataIn->acVaryingData[sizeof(ayVec4)];
+    return (ayColor){*pfData2 * ptColor->x * 255, *pfData2 * ptColor->y * 255, *pfData2 * ptColor->z * 255};
 }
 
 ayVec2
@@ -20,6 +21,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
     ayVec2 tPos = *(ayVec2*)pVertexDataIn;
 
     ayVec4* ptColor = (ayVec4*)&ptVaryingDataOut->acVaryingData[0];
+    float* pfData2 = (float*)&ptVaryingDataOut->acVaryingData[sizeof(ayVec4)];
 
     if(tBuiltIns.uVertexID == 0)
     {
@@ -27,6 +29,8 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->y = 0;
         ptColor->z = 0;
         ptColor->w = 1.0f;
+
+        *pfData2 = 1.0f;
     }
 
     else if(tBuiltIns.uVertexID == 1)
@@ -35,6 +39,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->y = 1.0f;
         ptColor->z = 0;
         ptColor->w = 1.0f;
+        *pfData2 = 1.0f;
     }
 
     else if(tBuiltIns.uVertexID == 2)
@@ -43,6 +48,7 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
         ptColor->y = 0;
         ptColor->z = 1.0f;
         ptColor->w = 1.0f;
+        *pfData2 = 0.25f;
     }
     
     return (ayVec2){tPos.x, tPos.y};

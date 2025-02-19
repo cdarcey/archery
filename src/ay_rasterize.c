@@ -293,20 +293,33 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     };
 
                     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    const ayVec4* ptColor0 = (ayVec4*)(char*)&tVaryingData0.acVaryingData[0];
-                    const ayVec4* ptColor1 = (ayVec4*)(char*)&tVaryingData1.acVaryingData[0];
-                    const ayVec4* ptColor2 = (ayVec4*)(char*)&tVaryingData2.acVaryingData[0];
-
-                    ayVec4 tBlendedColor = {
-                        .x = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
-                        .y = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
-                        .z = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC))
-                    };
 
                     // Varying system
                     ayVaryingData blendedVaryingData = {0};
 
+                    // processing first varying
+                    const ayVec4* ptColor0 = (ayVec4*)&tVaryingData0.acVaryingData[0];
+                    const ayVec4* ptColor1 = (ayVec4*)&tVaryingData1.acVaryingData[0];
+                    const ayVec4* ptColor2 = (ayVec4*)&tVaryingData2.acVaryingData[0];
+
+                    ayVec4 tBlendedColor = {
+                        .x = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
+                        .y = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
+                        .z = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC)),
+                        .w = ((float)(ptColor0->w * weightA) + (float)(ptColor1->w * weightB) + (float)(ptColor2->w * weightC))
+                    };
+
                     memcpy(&blendedVaryingData.acVaryingData[0], &tBlendedColor, sizeof(ayVec4));
+
+                    // processing second varying
+                    const float tData0 = *(float*)&tVaryingData0.acVaryingData[sizeof(ayVec4)];
+                    const float tData1 = *(float*)&tVaryingData1.acVaryingData[sizeof(ayVec4)];
+                    const float tData2 = *(float*)&tVaryingData2.acVaryingData[sizeof(ayVec4)];
+
+                    float fBlendedData2 = ((float)(tData0 * weightA) + (float)(tData1 * weightB) + (float)(tData2 * weightC));
+
+                    memcpy(&blendedVaryingData.acVaryingData[sizeof(ayVec4)], &fBlendedData2, sizeof(float));
+                    
                     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
                     // run pixel shader
