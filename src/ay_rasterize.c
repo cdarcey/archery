@@ -241,8 +241,8 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         // defining varying data
         ayVaryingData tVaryingData0 = {0};
-        ayVaryingData tVaryingData2 = {0};
         ayVaryingData tVaryingData1 = {0};
+        ayVaryingData tVaryingData2 = {0};
 
         // function pointer returning ayVec2 containing vertex data
         // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                             // VaryingDataOut
@@ -293,20 +293,20 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     };
 
                     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-                    const ayColor* ptColor0 = (ayColor*)&tVaryingData0.acVaryingData[0];
-                    const ayColor* ptColor1 = (ayColor*)&tVaryingData1.acVaryingData[0];
-                    const ayColor* ptColor2 = (ayColor*)&tVaryingData2.acVaryingData[0];
+                    const ayVec4* ptColor0 = (ayVec4*)&tVaryingData0.acVaryingData[0];
+                    const ayVec4* ptColor1 = (ayVec4*)&tVaryingData1.acVaryingData[sizeof(float)];
+                    const ayVec4* ptColor2 = (ayVec4*)&tVaryingData2.acVaryingData[sizeof(float) * 2];
 
                     ayColor tBlendedColor = {
-                        .r = ((float)(ptColor0->r * weightA) + (float)(ptColor1->r * weightB) + (float)(ptColor2->r * weightC)),
-                        .g = ((float)(ptColor0->g * weightA) + (float)(ptColor1->g * weightB) + (float)(ptColor2->g * weightC)),
-                        .b = ((float)(ptColor0->b * weightA) + (float)(ptColor1->b * weightB) + (float)(ptColor2->b * weightC))
+                        .r = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
+                        .g = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
+                        .b = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC))
                     };
 
                     // Varying system
                     ayVaryingData blendedVaryingData = {0};
 
-                    memcpy(&blendedVaryingData.acVaryingData[0], &tBlendedColor, sizeof(ayColor));
+                    memcpy(&blendedVaryingData.acVaryingData[0], &tBlendedColor, sizeof(ayVec4));
                     // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
                     // run pixel shader
