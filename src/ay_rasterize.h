@@ -23,6 +23,7 @@ Index of this file:
 
 #include <stdint.h> // uint*_t
 #include <stddef.h> // size_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -30,6 +31,16 @@ Index of this file:
 
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
+
+typedef struct _ayTypeFlags
+{
+    bool ayVec2Type;
+    bool ayVec3Type;
+    bool ayVec4Type;
+    bool ayFloatType;
+} ayTypeFlags;
+
+extern ayTypeFlags tTypeFlags;
 
 typedef struct _ayVec2
 {
@@ -73,6 +84,10 @@ typedef struct _ayVaryingData
 {
 
     // layout info
+    size_t ayVec2Pos;
+    size_t ayVec3Pos;
+    size_t ayVec4Pos;
+    size_t ayFloatPos;
 
 
     // TODO: add system in here for varying layout
