@@ -148,9 +148,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         ayVaryingData tVaryingData2 = {0};
 
         // function pointer returning ayVec2 containing vertex data
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->szVertexStride], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * tVaryingData0.tLayout.tStride[1]], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * tVaryingData0.tLayout.tStride[1]], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * tVaryingData0.tLayout.tStride[1]], &tVaryingData2);
 
         // why is the point of the orginal vertex
         ayVec2 tVertex0 = tOriginalVertex0;
@@ -247,9 +247,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         // function pointer returning ayVec2 containing vertex data
         // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                             // VaryingDataOut
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->szVertexStride], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * tVaryingData0.tLayout.tStride[1]], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * tVaryingData0.tLayout.tStride[1]], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * tVaryingData0.tLayout.tStride[1]], &tVaryingData2);
 
         // frame buffer space
 
@@ -300,7 +300,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     ayVaryingData blendedVaryingData = {0};
                     for(int varyIndex = 0; varyIndex < tVaryingData0.varyingCount; varyIndex++)
                     {
-                        if(tVaryingData0.tTypeFlags[varyIndex].ayVec2Type == true)
+                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec2Type)
                         {
                             // 1st input 
                             // Vec2 blending
@@ -314,7 +314,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &blendedVec2, sizeof(ayVec2));
                             varyDataOffset += sizeof(ayVec2);
                         }
-                        if(tVaryingData0.tTypeFlags[varyIndex].ayVec3Type == true)
+                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec3Type)
                         {
                             // 2nd input 
                             // Vec3 blending 
@@ -330,7 +330,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedVecThree, sizeof(ayVec3));
                             varyDataOffset += sizeof(ayVec3);
                         }
-                        if(tVaryingData0.tTypeFlags[varyIndex].ayVec4Type == true)
+                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec4Type)
                         {
                             // 3rd input
                             // Vec4 blending 
@@ -347,7 +347,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedColor, sizeof(ayVec4));
                             varyDataOffset += sizeof(ayVec4);
                         }
-                        if(tVaryingData0.tTypeFlags[varyIndex].ayFloatType == true)
+                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayFloatType)
                         {
                             // 4th input 
                             // float blending 

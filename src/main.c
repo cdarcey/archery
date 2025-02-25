@@ -17,9 +17,25 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingD
 ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
-    ptVaryingDataOut->varyingCount = 2;
-    ptVaryingDataOut->tTypeFlags[0].ayVec4Type = true;
-    ptVaryingDataOut->tTypeFlags[1].ayFloatType = true;
+    ptVaryingDataOut->varyingCount = 3;
+
+    // color
+    ptVaryingDataOut->tLayout.tTypeFlags[0] = ayVec4Type;
+    ptVaryingDataOut->tLayout.tElements[0] = 4;
+    ptVaryingDataOut->tLayout.tStride[0] = sizeof(float) * 4;
+
+    // position
+    ptVaryingDataOut->tLayout.tTypeFlags[1] = ayVec2Type;
+    ptVaryingDataOut->tLayout.tElements[1] = 2;
+    ptVaryingDataOut->tLayout.tStride[1] = sizeof(float) * 2;
+
+    //factor to dull color
+    ptVaryingDataOut->tLayout.tTypeFlags[2] = ayFloatType;
+    ptVaryingDataOut->tLayout.tElements[2] = 1;
+    ptVaryingDataOut->tLayout.tStride[2] = sizeof(float);
+
+
+
 
     ayVec2 tPos = *(ayVec2*)pVertexDataIn;
 
@@ -63,40 +79,33 @@ int main()
 {
 
     ayGraphicsData* ptData = initialize_graphics();
+    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(256, 256);
+    ay_clear_frame_buffer(ptFrameBuffer, (ayColor){255, 255, 255});
 
     // code timing start 
     clock_t start, end;
     double cpu_time_used;
     start = clock();
 
-    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(256, 256);
-    ay_clear_frame_buffer(ptFrameBuffer, (ayColor){255, 255, 255});
-
-
-
     // vertices 
     float afVertexBuffer[6] = { // x, y
-        -1.0f, -1.0f, // top left
-       -1.0f,  1.0f, // bottom left
-        1.0f,  -1.0f  // bottom right
-   };
-
-    uint32_t atIndexBuffer[3] = { 
-        0, 2, 1 // triangle 0
+        -1.0f,  -1.0f, // top left
+         1.0f,  -1.0f,  // top right
+        -1.0f,   1.0f, // bottom left
     };
-
+    uint32_t atIndexBuffer[3] = { 
+        0, 1, 2 // triangle 0
+    };
     ayPipeline tPipeline = {
         .tPixelShader = ayPixelShader_0,
         .tVertexShader = ayVertexShader_0,
-        .szVertexStride = sizeof(float) * 2
-    };
 
+    };
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, afVertexBuffer);
     ay_bind_pipeline(ptData, &tPipeline);
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 3);
-
     ay_output_frame_buffer(ptFrameBuffer);
 
     // code timing end 

@@ -23,7 +23,6 @@ Index of this file:
 
 #include <stdint.h> // uint*_t
 #include <stddef.h> // size_t
-#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -32,12 +31,12 @@ Index of this file:
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
-typedef struct _ayTypeFlags // TODO: change to enum 
+typedef enum _ayTypeFlags 
 {
-    bool ayVec2Type;
-    bool ayVec3Type;
-    bool ayVec4Type;
-    bool ayFloatType;
+    ayVec2Type,
+    ayVec3Type,
+    ayVec4Type,
+    ayFloatType,
 } ayTypeFlags;
 
 typedef struct _ayVec2
@@ -78,10 +77,17 @@ typedef struct _ayVertexShaderBuiltIns
     uint32_t uVertexID;
 } ayVertexShaderBuiltIns;
 
+typedef struct _ayVertexLayout
+{
+    ayTypeFlags tTypeFlags[16];
+    size_t      tStride[16];
+    int         tElements[16];
+} _ayVertexLayout;
+
 typedef struct _ayVaryingData
 {
+    _ayVertexLayout tLayout;
 
-    ayTypeFlags tTypeFlags[16];
     int varyingCount;
 
     char acVaryingData[512]; 
@@ -96,7 +102,7 @@ typedef struct _ayPipeline
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
-    size_t            szVertexStride;
+
     
 } ayPipeline;
 
