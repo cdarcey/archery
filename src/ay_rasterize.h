@@ -32,15 +32,13 @@ Index of this file:
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
-typedef struct _ayTypeFlags
+typedef struct _ayTypeFlags // TODO: change to enum 
 {
     bool ayVec2Type;
     bool ayVec3Type;
     bool ayVec4Type;
     bool ayFloatType;
 } ayTypeFlags;
-
-extern ayTypeFlags tTypeFlags;
 
 typedef struct _ayVec2
 {
@@ -83,16 +81,10 @@ typedef struct _ayVertexShaderBuiltIns
 typedef struct _ayVaryingData
 {
 
-    // layout info
-    size_t ayVec2Pos;
-    size_t ayVec3Pos;
-    size_t ayVec4Pos;
-    size_t ayFloatPos;
+    ayTypeFlags tTypeFlags[16];
+    int varyingCount;
 
-
-    // TODO: add system in here for varying layout
-    //       so you can interpolate them correctly
-    char acVaryingData[512]; // this should be cast to correct types once you decide on layout system
+    char acVaryingData[512]; 
 } ayVaryingData;
 
 // function pointers
@@ -104,9 +96,6 @@ typedef struct _ayPipeline
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
-    // TODO: vertex layout
-    
-    
     size_t            szVertexStride;
     
 } ayPipeline;
