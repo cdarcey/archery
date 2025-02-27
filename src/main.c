@@ -17,7 +17,7 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingD
 ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
-    ptVaryingDataOut->varyingCount = 3;
+    ptVaryingDataOut->tVaryingCount = 3;
 
     // color
     ptVaryingDataOut->tLayout.tTypeFlags[0] = ayVec4Type;

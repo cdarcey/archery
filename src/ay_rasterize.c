@@ -298,7 +298,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     // Varying system
                     int varyDataOffset = 0;
                     ayVaryingData blendedVaryingData = {0};
-                    for(int varyIndex = 0; varyIndex < tVaryingData0.varyingCount; varyIndex++)
+                    for(int varyIndex = 0; varyIndex < tVaryingData0.tVaryingCount; varyIndex++)
                     {
                         if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec2Type)
                         {

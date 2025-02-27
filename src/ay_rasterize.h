@@ -82,15 +82,13 @@ typedef struct _ayVertexLayout
     ayTypeFlags tTypeFlags[16];
     size_t      tStride[16];
     int         tElements[16];
-} _ayVertexLayout;
+} ayVertexLayout;
 
 typedef struct _ayVaryingData
 {
-    _ayVertexLayout tLayout;
-
-    int varyingCount;
-
-    char acVaryingData[512]; 
+    ayVertexLayout tLayout;
+    int            tVaryingCount;
+    char           acVaryingData[512]; 
 } ayVaryingData;
 
 // function pointers
