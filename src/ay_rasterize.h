@@ -31,13 +31,22 @@ Index of this file:
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
-typedef enum _ayTypeFlags 
+typedef enum _ayVaryingType
 {
-    ayVec2Type,
-    ayVec3Type,
-    ayVec4Type,
-    ayFloatType,
-} ayTypeFlags;
+    AY_VARYING_TYPE_NONE = 0,
+    AY_VARYING_TYPE_VEC2,
+    AY_VARYING_TYPE_VEC3,
+    AY_VARYING_TYPE_VEC4,
+    AY_VARYING_TYPE_FLOAT,
+} ayVaryingType;
+
+typedef enum _ayVertexAttributeType
+{
+    AY_VERTEX_ATTRIBUTE_TYPE_NONE = 0,
+    AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+    AY_VERTEX_ATTRIBUTE_TYPE_VEC3,
+    AY_VERTEX_ATTRIBUTE_TYPE_VEC4,
+} ayVertexAttributeType;
 
 typedef struct _ayVec2
 {
@@ -77,18 +86,15 @@ typedef struct _ayVertexShaderBuiltIns
     uint32_t uVertexID;
 } ayVertexShaderBuiltIns;
 
-typedef struct _ayVertexLayout
-{
-    ayTypeFlags tTypeFlags[16];
-    size_t      tStride[16];
-    int         tElements[16];
-} ayVertexLayout;
-
 typedef struct _ayVaryingData
 {
-    ayVertexLayout tLayout;
-    int            tVaryingCount;
-    char           acVaryingData[512]; 
+    ayVaryingType atTypes[16];
+    char          acVaryingData[512];
+
+    // internal
+    uint32_t _uCurrentVarying;
+    uint32_t _uCurrentOffset;
+    uint32_t _auOffset[16];
 } ayVaryingData;
 
 // function pointers
@@ -100,8 +106,8 @@ typedef struct _ayPipeline
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
-
-    
+    // replace with vertex layout system
+    size_t szVertexStride;
 } ayPipeline;
 
 //-----------------------------------------------------------------------------
@@ -132,5 +138,11 @@ void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 // draw calls
 void ay_draw(ayGraphicsData*, uint32_t uFirstVertex, uint32_t uVertexCount);
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
+
+
+//----------------------------shader helpers-----------------------------------
+
+void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
+const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
 
 #endif

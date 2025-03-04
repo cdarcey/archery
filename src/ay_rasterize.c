@@ -148,9 +148,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         ayVaryingData tVaryingData2 = {0};
 
         // function pointer returning ayVec2 containing vertex data
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * tVaryingData0.tLayout.tStride[1]], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * tVaryingData0.tLayout.tStride[1]], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * tVaryingData0.tLayout.tStride[1]], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->szVertexStride], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
 
         // why is the point of the orginal vertex
         ayVec2 tVertex0 = tOriginalVertex0;
@@ -247,9 +247,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         // function pointer returning ayVec2 containing vertex data
         // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                             // VaryingDataOut
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * tVaryingData0.tLayout.tStride[1]], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * tVaryingData0.tLayout.tStride[1]], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * tVaryingData0.tLayout.tStride[1]], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->szVertexStride], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
 
         // frame buffer space
 
@@ -298,9 +298,21 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     // Varying system
                     int varyDataOffset = 0;
                     ayVaryingData blendedVaryingData = {0};
-                    for(int varyIndex = 0; varyIndex < tVaryingData0.tVaryingCount; varyIndex++)
+
+                    for(uint32_t j = 0; j < 16; j++)
+                        blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
+
+                    int iVaryingCount = 0;
+                    for(int varyIndex = 0; varyIndex < 16; varyIndex++)
                     {
-                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec2Type)
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_NONE)
+                            break;
+                        iVaryingCount++;
+                    }
+
+                    for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
+                    {
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC2)
                         {
                             // 1st input 
                             // Vec2 blending
@@ -314,7 +326,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &blendedVec2, sizeof(ayVec2));
                             varyDataOffset += sizeof(ayVec2);
                         }
-                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec3Type)
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC3)
                         {
                             // 2nd input 
                             // Vec3 blending 
@@ -330,7 +342,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedVecThree, sizeof(ayVec3));
                             varyDataOffset += sizeof(ayVec3);
                         }
-                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayVec4Type)
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC4)
                         {
                             // 3rd input
                             // Vec4 blending 
@@ -347,7 +359,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedColor, sizeof(ayVec4));
                             varyDataOffset += sizeof(ayVec4);
                         }
-                        if(tVaryingData0.tLayout.tTypeFlags[varyIndex] == ayFloatType)
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_FLOAT)
                         {
                             // 4th input 
                             // float blending 
@@ -406,6 +418,30 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor)
     }
 
 };
+
+void*
+ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut)
+{
+    void* ptResult = (void*)&ptVaryingDataOut->acVaryingData[ptVaryingDataOut->_uCurrentOffset];
+    ptVaryingDataOut->_auOffset[ptVaryingDataOut->_uCurrentVarying] = ptVaryingDataOut->_uCurrentOffset;
+
+    if(tType == AY_VARYING_TYPE_FLOAT)     ptVaryingDataOut->_uCurrentOffset += sizeof(float);
+    else if(tType == AY_VARYING_TYPE_VEC2) ptVaryingDataOut->_uCurrentOffset += sizeof(float) * 2;
+    else if(tType == AY_VARYING_TYPE_VEC3) ptVaryingDataOut->_uCurrentOffset += sizeof(float) * 3;
+    else if(tType == AY_VARYING_TYPE_VEC4) ptVaryingDataOut->_uCurrentOffset += sizeof(float) * 4;
+
+    ptVaryingDataOut->atTypes[ptVaryingDataOut->_uCurrentVarying] = tType;
+    ptVaryingDataOut->_uCurrentVarying++;
+
+    return ptResult;
+}
+
+const void*
+ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut)
+{
+    uint32_t uOffset = ptVaryingDataOut->_auOffset[uVaryingIndex];
+    return (void*)&ptVaryingDataOut->acVaryingData[uOffset];
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation

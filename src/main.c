@@ -7,8 +7,9 @@ ayColor
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
 {
 
-    ayVec4* ptColor = (ayVec4*)&ptVaryingDataIn->acVaryingData[0];
-    float*  pfData2 =  (float*)&ptVaryingDataIn->acVaryingData[sizeof(ayVec4)];
+    const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
+    const float*  pfData2 = ay_get_varying(1, ptVaryingDataIn);
+
     return (ayColor){*pfData2 * ptColor->x  * 255, 
                      *pfData2 * ptColor->y  * 255, 
                      *pfData2 * ptColor->z  * 255};
@@ -17,58 +18,27 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingD
 ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
-    ptVaryingDataOut->tVaryingCount = 3;
+    const char* pcVertexDataIn = pVertexDataIn;
+    ayVec2 tPos = *(ayVec2*)&pcVertexDataIn[0];
+    ayVec3 tColor = *(ayVec3*)&pcVertexDataIn[sizeof(ayVec3)];
 
-    // color
-    ptVaryingDataOut->tLayout.tTypeFlags[0] = ayVec4Type;
-    ptVaryingDataOut->tLayout.tElements[0] = 4;
-    ptVaryingDataOut->tLayout.tStride[0] = sizeof(float) * 4;
+    ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
+    float* pfData2  = ay_set_varying(AY_VARYING_TYPE_FLOAT, ptVaryingDataOut); // dull factor
 
-    // position
-    ptVaryingDataOut->tLayout.tTypeFlags[1] = ayVec2Type;
-    ptVaryingDataOut->tLayout.tElements[1] = 2;
-    ptVaryingDataOut->tLayout.tStride[1] = sizeof(float) * 2;
-
-    //factor to dull color
-    ptVaryingDataOut->tLayout.tTypeFlags[2] = ayFloatType;
-    ptVaryingDataOut->tLayout.tElements[2] = 1;
-    ptVaryingDataOut->tLayout.tStride[2] = sizeof(float);
-
-
-
-
-    ayVec2 tPos = *(ayVec2*)pVertexDataIn;
-
-    ayVec4* ptColor = (ayVec4*)&ptVaryingDataOut->acVaryingData[0];
-    float* pfData2  =  (float*)&ptVaryingDataOut->acVaryingData[sizeof(ayVec4)];
+    *ptColor = tColor;
 
     if(tBuiltIns.uVertexID == 0)
     {
-        ptColor->x = 1.0f;
-        ptColor->y = 0;
-        ptColor->z = 0;
-        ptColor->w = 1.0f;
-
         *pfData2 = 0.5f;
     }
 
     else if(tBuiltIns.uVertexID == 1)
     {
-        ptColor->x = 0;
-        ptColor->y = 1.0f;
-        ptColor->z = 0;
-        ptColor->w = 1.0f;
-
         *pfData2 = 0.5f;
     }
 
     else if(tBuiltIns.uVertexID == 2)
     {
-        ptColor->x = 0;
-        ptColor->y = 0;
-        ptColor->z = 1.0f;
-        ptColor->w = 1.0f;
-
         *pfData2 = 0.5f;
     }
     
@@ -88,10 +58,10 @@ int main()
     start = clock();
 
     // vertices 
-    float afVertexBuffer[6] = { // x, y
-        -1.0f,  -1.0f, // top left
-         1.0f,  -1.0f,  // top right
-        -1.0f,   1.0f, // bottom left
+    float afVertexBuffer[] = { // x, y, ?, r, g, b
+        -1.0f,  -1.0f, 1.0f, 0.0f, 0.0f, // top left
+         1.0f,  -1.0f, 0.0f, 1.0f, 0.0f, // top right
+        -1.0f,   1.0f, 0.0f, 0.0f, 1.0f, // bottom left
     };
     uint32_t atIndexBuffer[3] = { 
         0, 1, 2 // triangle 0
@@ -99,6 +69,7 @@ int main()
     ayPipeline tPipeline = {
         .tPixelShader = ayPixelShader_0,
         .tVertexShader = ayVertexShader_0,
+        .szVertexStride = sizeof(float) * 6
 
     };
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
