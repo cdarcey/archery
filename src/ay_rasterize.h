@@ -101,12 +101,26 @@ typedef struct _ayVaryingData
 typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
 
+typedef enum _ayAttribDesc
+{
+    AY_ATTRIB_POSISTION,
+    AY_ATTRIB_COLOR
+} ayAttricDesc;
+
+typedef struct _ayVertexLayout
+{
+    ayAttricDesc tAttribDesc;
+    size_t       szAttribOffset;
+
+} ayVertexLayout;
+
 typedef struct _ayPipeline
 {
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
 
     // replace with vertex layout system
+    ayVertexLayout tLayout;
     size_t szVertexStride;
 } ayPipeline;
 
@@ -144,5 +158,7 @@ void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount
 
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
+
+
 
 #endif
