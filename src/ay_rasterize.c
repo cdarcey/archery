@@ -147,10 +147,18 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
 
+        int vertexIndex = 0;
+        for(int vertexIndexCount = 0; vertexIndexCount < 16; vertexIndexCount++)
+        {
+            if(ptData->ptPipeline->tLayout.tAttribDesc[vertexIndexCount] == AY_ATTRIB_POSISTION)
+                break;
+                vertexIndex++;
+        }
+
         // function pointer returning ayVec2 containing vertex data
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->szVertexStride], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->szVertexStride], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->szVertexStride], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData2);
 
         // why is the point of the orginal vertex
         ayVec2 tVertex0 = tOriginalVertex0;
@@ -245,11 +253,19 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
 
+        int vertexIndex = 0;
+        for(int vertexIndexCount = 0; vertexIndexCount < 16; vertexIndexCount++)
+        {
+            if(ptData->ptPipeline->tLayout.tAttribDesc[vertexIndexCount] == AY_ATTRIB_POSISTION)
+                break;
+                vertexIndex++;
+        }
+
         // function pointer returning ayVec2 containing vertex data
         // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                             // VaryingDataOut
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szAttribOffset], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szAttribOffset], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szAttribOffset], &tVaryingData2);
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData2);
 
         // frame buffer space
 

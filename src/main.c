@@ -3,15 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-void* ay_set_vertex_attrib(ayAttricDesc tAttrib, ayVaryingData* ptVaryingDataOut)
-{
-    if(AY_ATTRIB_POSISTION) 
-};
 
-// const void* ay_get_vertex_attrib(ayAttricDesc tAttrib)
-// {
-//     if(AY_ATTRIB_POSISTION)
-// };
 
 ayColor
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
@@ -68,17 +60,19 @@ int main()
     start = clock();
 
     ayVertexLayout testLayout = {
-        .tAttribDesc = AY_ATTRIB_POSISTION,
-        .szAttribOffset = sizeof(float) * 6
-
-        
+        .tAttribDesc[0] = AY_ATTRIB_POSISTION,
+        .szAttribOffset[0] = sizeof(float) * 6,
+        .tAttribDesc[1] = AY_ATTRIB_COLOR,
+        .szAttribOffset[1] = sizeof(float) * 3,
+        .tAttribDesc[2] = AY_ATTRIB_FACTOR,
+        .szAttribOffset[2] = sizeof(float) * 2,
     };
 
     // vertices 
     float afVertexBuffer[] = { // x, y, ?, r, g, b
-        -1.0f,  -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
-         1.0f,  -1.0f, 0.5f, 0.0f, 1.0f, 0.0f, // top right
-        -1.0f,   1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
+        -1.0f, -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
+         1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 0.0f, // top right
+        -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
     };
     uint32_t atIndexBuffer[3] = { 
         0, 1, 2 // triangle 0
@@ -86,7 +80,6 @@ int main()
     ayPipeline tPipeline = {
         .tPixelShader = ayPixelShader_0,
         .tVertexShader = ayVertexShader_0,
-        .szVertexStride = sizeof(float) * 6,
         .tLayout = testLayout
     };
     ay_bind_frame_buffer(ptData, ptFrameBuffer);

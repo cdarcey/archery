@@ -104,13 +104,14 @@ typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexData
 typedef enum _ayAttribDesc
 {
     AY_ATTRIB_POSISTION,
-    AY_ATTRIB_COLOR
+    AY_ATTRIB_COLOR, 
+    AY_ATTRIB_FACTOR
 } ayAttricDesc;
 
 typedef struct _ayVertexLayout
 {
-    ayAttricDesc tAttribDesc;
-    size_t       szAttribOffset;
+    ayAttricDesc tAttribDesc[16];
+    size_t       szAttribOffset[16];
 
 } ayVertexLayout;
 
@@ -121,7 +122,7 @@ typedef struct _ayPipeline
 
     // replace with vertex layout system
     ayVertexLayout tLayout;
-    size_t szVertexStride;
+    // size_t szVertexStride;
 } ayPipeline;
 
 //-----------------------------------------------------------------------------
