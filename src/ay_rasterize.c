@@ -133,13 +133,16 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         // vertex shader stage
         // setting vertex ID
         ayVertexShaderBuiltIns tVSBuiltIns0 = {
-            .uVertexID = uIndex0
+            .uVertexID = uIndex0,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
         ayVertexShaderBuiltIns tVSBuiltIns1 = {
-            .uVertexID = uIndex1
+            .uVertexID = uIndex1,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
         ayVertexShaderBuiltIns tVSBuiltIns2 = {
-            .uVertexID = uIndex2
+            .uVertexID = uIndex2,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
 
         // defining varying data
@@ -239,13 +242,16 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         // vertex shader stage
         // setting vertex ID
         ayVertexShaderBuiltIns tVSBuiltIns0 = {
-            .uVertexID = uIndex0
+            .uVertexID = uIndex0,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
         ayVertexShaderBuiltIns tVSBuiltIns1 = {
-            .uVertexID = uIndex1
+            .uVertexID = uIndex1,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
         ayVertexShaderBuiltIns tVSBuiltIns2 = {
-            .uVertexID = uIndex2
+            .uVertexID = uIndex2,
+            .tLayout   = ptData->ptPipeline->tLayout
         };
 
         // defining varying data
@@ -253,19 +259,11 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
 
-        int vertexIndex = 0;
-        for(int vertexIndexCount = 0; vertexIndexCount < 16; vertexIndexCount++)
-        {
-            if(ptData->ptPipeline->tLayout.tAttribType[vertexIndexCount] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
-                break;
-                vertexIndex++;
-        }
-
         // function pointer returning ayVec2 containing vertex data
-        // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                             // VaryingDataOut
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szAttribOffset[vertexIndex]], &tVaryingData2);
+        // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                                                                                 // VaryingDataOut
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData2);
 
         // frame buffer space
 
@@ -401,14 +399,15 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 }
 
 void*
-ay_get_vertex_attrib(ayGraphicsData* ptData, const void* pcVertexDataIn)
+ay_get_vertex_attrib(const void* pcVertexDataIn, ayGraphicsData* ptData)
 {
-    char* ptResult = &pcVertexDataIn;
-    if(ptData->ptPipeline->tLayout.tAttribType == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
+    const char* ptResult = pcVertexDataIn;
+    if(ptData->ptPipeline->tLayout.tAttribType[0] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
     {
-        uint32_t uOffset = ptData->ptPipeline->tLayout.szAttribOffset;
+        uint32_t uOffset = ptData->ptPipeline->tLayout.szAttribOffset[0];
         return (void*)ptResult[uOffset];
     }
+    return NULL;
 };
 
 ayFrameBufferData*

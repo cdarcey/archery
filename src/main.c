@@ -21,7 +21,7 @@ ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
     const char* pcVertexDataIn = pVertexDataIn;
-    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pcVertexDataIn);
+    ayVec2 tPos = *(ayVec2*)pVertexDataIn;
     ayVec3 tColor = *(ayVec3*)&pcVertexDataIn[sizeof(ayVec3)];
 
     ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
@@ -59,15 +59,6 @@ int main()
     double cpu_time_used;
     start = clock();
 
-    ayVertexLayout testLayout = {
-        .tAttribType[0] = AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
-        .szAttribOffset[0] = sizeof(ayVec2),
-        .tAttribType[1] = AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
-        .szAttribOffset[1] = sizeof(float),
-        .tAttribType[2] = AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
-        .szAttribOffset[2] = sizeof(ayVec3),
-    };
-
     // vertices 
     float afVertexBuffer[] = { // x, y, ?, r, g, b
         -1.0f, -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
@@ -77,10 +68,23 @@ int main()
     uint32_t atIndexBuffer[3] = { 
         0, 1, 2 // triangle 0
     };
+
     ayPipeline tPipeline = {
         .tPixelShader = ayPixelShader_0,
         .tVertexShader = ayVertexShader_0,
-        .tLayout = testLayout
+        .tLayout = {
+            .tAttribType = {
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+                AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC3
+            },
+            .szAttribOffset = {
+                0,
+                sizeof(ayVec2),
+                sizeof(ayVec2) + sizeof(float)
+            },
+            .szVertexStride = sizeof(ayVec2) + sizeof(float) + sizeof(ayVec3)
+        }
     };
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, afVertexBuffer);

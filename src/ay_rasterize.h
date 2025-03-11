@@ -77,6 +77,14 @@ typedef struct _ayColor
     unsigned char b;
 } ayColor;
 
+typedef struct _ayVertexLayout
+{
+    ayVertexAttributeType tAttribType[16];
+    size_t                szAttribOffset[16];
+    size_t                szVertexStride;
+
+} ayVertexLayout;
+
 typedef struct _ayPixelShaderBuiltIns
 {
     ayVec2 tUV;
@@ -85,6 +93,7 @@ typedef struct _ayPixelShaderBuiltIns
 typedef struct _ayVertexShaderBuiltIns
 {
     uint32_t uVertexID;
+    ayVertexLayout tLayout;
 } ayVertexShaderBuiltIns;
 
 typedef struct _ayVaryingData
@@ -101,13 +110,6 @@ typedef struct _ayVaryingData
 // function pointers
 typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
-
-typedef struct _ayVertexLayout
-{
-    ayVertexAttributeType tAttribType[16];
-    size_t                szAttribOffset[16];
-
-} ayVertexLayout;
 
 typedef struct _ayPipeline
 {
