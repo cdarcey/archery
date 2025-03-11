@@ -150,7 +150,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         int vertexIndex = 0;
         for(int vertexIndexCount = 0; vertexIndexCount < 16; vertexIndexCount++)
         {
-            if(ptData->ptPipeline->tLayout.tAttribDesc[vertexIndexCount] == AY_ATTRIB_POSISTION)
+            if(ptData->ptPipeline->tLayout.tAttribType[vertexIndexCount] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
                 break;
                 vertexIndex++;
         }
@@ -256,7 +256,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         int vertexIndex = 0;
         for(int vertexIndexCount = 0; vertexIndexCount < 16; vertexIndexCount++)
         {
-            if(ptData->ptPipeline->tLayout.tAttribDesc[vertexIndexCount] == AY_ATTRIB_POSISTION)
+            if(ptData->ptPipeline->tLayout.tAttribType[vertexIndexCount] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
                 break;
                 vertexIndex++;
         }
@@ -399,6 +399,17 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         }
     }
 }
+
+void*
+ay_get_vertex_attrib(ayGraphicsData* ptData, const void* pcVertexDataIn)
+{
+    char* ptResult = &pcVertexDataIn;
+    if(ptData->ptPipeline->tLayout.tAttribType == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
+    {
+        uint32_t uOffset = ptData->ptPipeline->tLayout.szAttribOffset;
+        return (void*)ptResult[uOffset];
+    }
+};
 
 ayFrameBufferData*
 ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)

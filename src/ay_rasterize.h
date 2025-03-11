@@ -46,6 +46,7 @@ typedef enum _ayVertexAttributeType
     AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
     AY_VERTEX_ATTRIBUTE_TYPE_VEC3,
     AY_VERTEX_ATTRIBUTE_TYPE_VEC4,
+    AY_VERTEX_ATTRIBUTE_TYPE_FLOAT
 } ayVertexAttributeType;
 
 typedef struct _ayVec2
@@ -101,17 +102,10 @@ typedef struct _ayVaryingData
 typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
 
-typedef enum _ayAttribDesc
-{
-    AY_ATTRIB_POSISTION,
-    AY_ATTRIB_COLOR, 
-    AY_ATTRIB_FACTOR
-} ayAttricDesc;
-
 typedef struct _ayVertexLayout
 {
-    ayAttricDesc tAttribDesc[16];
-    size_t       szAttribOffset[16];
+    ayVertexAttributeType tAttribType[16];
+    size_t                szAttribOffset[16];
 
 } ayVertexLayout;
 
@@ -160,6 +154,6 @@ void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
 
-
+void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayGraphicsData* ptData);
 
 #endif

@@ -21,7 +21,7 @@ ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
     const char* pcVertexDataIn = pVertexDataIn;
-    ayVec2 tPos = *(ayVec2*)&pcVertexDataIn[0];
+    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pcVertexDataIn);
     ayVec3 tColor = *(ayVec3*)&pcVertexDataIn[sizeof(ayVec3)];
 
     ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
@@ -60,12 +60,12 @@ int main()
     start = clock();
 
     ayVertexLayout testLayout = {
-        .tAttribDesc[0] = AY_ATTRIB_POSISTION,
-        .szAttribOffset[0] = sizeof(float) * 6,
-        .tAttribDesc[1] = AY_ATTRIB_COLOR,
-        .szAttribOffset[1] = sizeof(float) * 3,
-        .tAttribDesc[2] = AY_ATTRIB_FACTOR,
-        .szAttribOffset[2] = sizeof(float) * 2,
+        .tAttribType[0] = AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+        .szAttribOffset[0] = sizeof(ayVec2),
+        .tAttribType[1] = AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
+        .szAttribOffset[1] = sizeof(float),
+        .tAttribType[2] = AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
+        .szAttribOffset[2] = sizeof(ayVec3),
     };
 
     // vertices 
