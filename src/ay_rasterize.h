@@ -70,19 +70,11 @@ typedef struct _ayVec4
     float w;
 } ayVec4;
 
-typedef struct _ayColor
-{
-    unsigned char r;
-    unsigned char g;
-    unsigned char b;
-} ayColor;
-
 typedef struct _ayVertexLayout
 {
     ayVertexAttributeType tAttribType[16];
     size_t                szAttribOffset[16];
     size_t                szVertexStride;
-
 } ayVertexLayout;
 
 typedef struct _ayPixelShaderBuiltIns
@@ -108,17 +100,14 @@ typedef struct _ayVaryingData
 } ayVaryingData;
 
 // function pointers
-typedef ayColor (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
+typedef ayVec3 (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
 {
     ayVertexShader tVertexShader;
     ayPixelShader  tPixelShader;
-
-    // replace with vertex layout system
     ayVertexLayout tLayout;
-    // size_t szVertexStride;
 } ayPipeline;
 
 //-----------------------------------------------------------------------------
@@ -132,7 +121,7 @@ ayGraphicsData* initialize_graphics(void);
 // framebuffer ops
 ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight);
 void               ay_output_frame_buffer    (ayFrameBufferData*);
-void               ay_clear_frame_buffer     (ayFrameBufferData*, ayColor);
+void               ay_clear_frame_buffer     (ayFrameBufferData*, ayVec3);
 
 //------------------------------commands---------------------------------------
 
@@ -150,12 +139,11 @@ void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 void ay_draw(ayGraphicsData*, uint32_t uFirstVertex, uint32_t uVertexCount);
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
 
-
 //----------------------------shader helpers-----------------------------------
 
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
 
-void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayGraphicsData* ptData);
+const void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation);
 
 #endif

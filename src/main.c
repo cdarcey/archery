@@ -5,14 +5,14 @@
 
 
 
-ayColor
+ayVec3
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingDataIn)
 {
 
     const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
     const float*  pfData2 = ay_get_varying(1, ptVaryingDataIn);
 
-    return (ayColor){*pfData2 * ptColor->x  * 255, 
+    return (ayVec3){ *pfData2 * ptColor->x  * 255, 
                      *pfData2 * ptColor->y  * 255, 
                      *pfData2 * ptColor->z  * 255};
 }
@@ -20,12 +20,14 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingD
 ayVec2
 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut)
 {
+    ayVertexLayout vertLayout = tBuiltIns.tLayout;
     const char* pcVertexDataIn = pVertexDataIn;
-    ayVec2 tPos = *(ayVec2*)pVertexDataIn;
-    ayVec3 tColor = *(ayVec3*)&pcVertexDataIn[sizeof(ayVec3)];
+    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 1);
+    ayVec3 tColor = *(ayVec3*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 3);
+
 
     ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
-    float* pfData2  = ay_set_varying(AY_VARYING_TYPE_FLOAT, ptVaryingDataOut); // dull factor
+    float* pfData2 = ay_set_varying(AY_VARYING_TYPE_FLOAT, ptVaryingDataOut); // dull factor
 
     *ptColor = tColor;
 
@@ -52,21 +54,22 @@ int main()
 
     ayGraphicsData* ptData = initialize_graphics();
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(256, 256);
-    ay_clear_frame_buffer(ptFrameBuffer, (ayColor){255, 255, 255});
+    ay_clear_frame_buffer(ptFrameBuffer, (ayVec3){255, 255, 255});
 
     // code timing start 
     clock_t start, end;
     double cpu_time_used;
     start = clock();
-
+    
     // vertices 
-    float afVertexBuffer[] = { // x, y, ?, r, g, b
-        -1.0f, -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
-         1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 0.0f, // top right
-        -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
+    float afVertexBuffer[] = { // ?, ?, x, y, ?, r, g, b
+        0.5f, 0.0f, -1.0f, -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
+        0.5f, 0.0f,  1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 0.0f, // top right
+        0.5f, 0.0f, -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
+        0.5f, 0.0f,  1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
     };
-    uint32_t atIndexBuffer[3] = { 
-        0, 1, 2 // triangle 0
+    uint32_t atIndexBuffer[6] = { 
+        0, 1, 2, 2, 1, 3 // triangle 0
     };
 
     ayPipeline tPipeline = {
@@ -75,22 +78,25 @@ int main()
         .tLayout = {
             .tAttribType = {
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
-                AY_VERTEX_ATTRIBUTE_TYPE_FLOAT,
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+                AY_VERTEX_ATTRIBUTE_TYPE_NONE,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC3
             },
             .szAttribOffset = {
                 0,
                 sizeof(ayVec2),
-                sizeof(ayVec2) + sizeof(float)
+                sizeof(ayVec2) + sizeof(ayVec2),
+                sizeof(ayVec2) + sizeof(float) + sizeof(ayVec2),
             },
-            .szVertexStride = sizeof(ayVec2) + sizeof(float) + sizeof(ayVec3)
+            .szVertexStride = sizeof(float) * 8,
+
         }
     };
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, afVertexBuffer);
     ay_bind_pipeline(ptData, &tPipeline);
     ay_bind_index_buffer(ptData, atIndexBuffer);
-    ay_draw_indexed(ptData, 0, 3);
+    ay_draw_indexed(ptData, 0, 6);
     ay_output_frame_buffer(ptFrameBuffer);
 
     // code timing end 

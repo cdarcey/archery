@@ -40,8 +40,6 @@ typedef struct _ayFrameBufferData
     unsigned char* pucData;
 } ayFrameBufferData;
 
-
-
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -72,7 +70,7 @@ ay_min_num(int a, int b, int c)
     return c;
 };
 
-static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayColor tColor);
+static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -210,10 +208,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                         .tUV = {fUVX, fUVY}
                     };
 
-
-
-
-                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &tVaryingData0);
+                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &tVaryingData0);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -231,7 +226,6 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
-
         const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
@@ -266,7 +260,6 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData2);
 
         // frame buffer space
-
         ayVec2 tVertex0 = tOriginalVertex0;
         ayVec2 tVertex1 = tOriginalVertex1;
         ayVec2 tVertex2 = tOriginalVertex2;
@@ -302,12 +295,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
                 if(ABP >= 0 && BCP >= 0 && CAP >= 0)
                 {
-
                     ayPixelShaderBuiltIns tBuiltIns = {
                         .tUV = {vertexP.x, vertexP.y}
                     };
-
-                    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
                     // Varying system
                     int varyDataOffset = 0;
@@ -387,10 +377,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             varyDataOffset += sizeof(float);
                         }
                     }
-                    // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
                     // run pixel shader
-                    ayColor tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &blendedVaryingData);
+                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &blendedVaryingData);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -398,22 +387,36 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     }
 }
 
-void*
-ay_get_vertex_attrib(const void* pcVertexDataIn, ayGraphicsData* ptData)
+const void*
+ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation)
 {
-    const char* ptResult = pcVertexDataIn;
-    if(ptData->ptPipeline->tLayout.tAttribType[0] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
+    const void* ptResult = pcVertexDataIn;
+    if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
     {
-        uint32_t uOffset = ptData->ptPipeline->tLayout.szAttribOffset[0];
-        return (void*)ptResult[uOffset];
+        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        ptResult = (char*)ptResult + uOffset;
     }
-    return NULL;
+    else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC3)
+    {
+        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        ptResult = (char*)ptResult + uOffset;
+    }
+    else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC4)
+    {
+        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        ptResult = (char*)ptResult + uOffset;
+    }
+    else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_FLOAT)
+    {
+        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        ptResult = (char*)ptResult + uOffset;
+    }
+    return (void*)ptResult;
 };
 
 ayFrameBufferData*
 ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
 {
-
     ayFrameBufferData* ptData = malloc(sizeof(ayFrameBufferData));
     memset(ptData, 0, sizeof(ayFrameBufferData));
 
@@ -432,9 +435,8 @@ ay_output_frame_buffer(ayFrameBufferData* ptData)
 };
 
 void
-ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor)
+ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec3 tColor)
 {
-
     for(uint32_t iRow = 0; iRow < ptData->uHeight; iRow++)
     {
         for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++)
@@ -442,7 +444,6 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData, ayColor tColor)
             ay_set_pixel(ptData, (ayVec2){iColumn, iRow}, tColor);
         }
     }
-
 };
 
 void*
@@ -474,28 +475,23 @@ ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut)
 //-----------------------------------------------------------------------------
 
 static void
-ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayColor tColor)
+ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor)
 {
-
     if(input.x < 0)
         return;
-
     if(input.y < 0)
         return;
-
     if(input.x >= ptData->uWidth)
         return;
-
     if(input.y >= ptData->uHeight)
         return;
 
     int iRowOffset = ptData->uWidth * 3 * input.y;
     int iPixelStart = iRowOffset + input.x * 3;
 
-    ptData->pucData[iPixelStart + 0] = tColor.r;
-    ptData->pucData[iPixelStart + 1] = tColor.g;
-    ptData->pucData[iPixelStart + 2] = tColor.b;
-
+    ptData->pucData[iPixelStart + 0] = tColor.x;
+    ptData->pucData[iPixelStart + 1] = tColor.y;
+    ptData->pucData[iPixelStart + 2] = tColor.z;
 };
 
 //-----------------------------------------------------------------------------
