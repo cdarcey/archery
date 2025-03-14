@@ -49,25 +49,66 @@ typedef enum _ayVertexAttributeType
     AY_VERTEX_ATTRIBUTE_TYPE_FLOAT
 } ayVertexAttributeType;
 
-typedef struct _ayVec2
+typedef union _ayVec2
 {
-    float x;
-    float y;
+    struct { float x, y; };
+    struct { float r, g; };
+    struct { float u, v; };
+    float d[2];
 } ayVec2;
 
-typedef struct _ayVec3
+typedef union _ayVec3
 {
-    float x;
-    float y;
-    float z;
+    struct { float x, y, z; };
+    struct { float r, g, b; };
+    struct { float u, v, __; };
+    struct { ayVec2 xy; float ignore0_; };
+    struct { ayVec2 rg; float ignore1_; };
+    struct { ayVec2 uv; float ignore2_; };
+    struct { float ignore3_; ayVec2 yz; };
+    struct { float ignore4_; ayVec2 gb; };
+    struct { float ignore5_; ayVec2 v__; };
+    float d[3];
 } ayVec3;
 
-typedef struct _ayVec4
+typedef union _ayVec4
 {
-    float x;
-    float y;
-    float z;
-    float w;
+    struct
+    {
+        union
+        {
+            ayVec3 xyz;
+            struct{ float x, y, z;};
+        };
+
+        float w;
+    };
+    struct
+    {
+        union
+        {
+            ayVec3 rgb;
+            struct{ float r, g, b;};
+        };
+        float a;
+    };
+    struct
+    {
+        ayVec2 xy;
+        float ignored0_, ignored1_;
+    };
+    struct
+    {
+        float ignored2_;
+        ayVec2 yz;
+        float ignored3_;
+    };
+    struct
+    {
+        float ignored4_, ignored5_;
+        ayVec2 zw;
+    };
+    float d[4];
 } ayVec4;
 
 typedef struct _ayVertexLayout
@@ -136,7 +177,6 @@ void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
-void ay_draw(ayGraphicsData*, uint32_t uFirstVertex, uint32_t uVertexCount);
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
 
 //----------------------------shader helpers-----------------------------------
