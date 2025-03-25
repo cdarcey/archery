@@ -151,7 +151,7 @@ typedef struct _ayDescriptorInfo
 } ayDescriptorInfo;
 
 // function pointers
-typedef ayVec3 (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
+typedef ayVec3 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
@@ -174,6 +174,9 @@ ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
 void               ay_output_frame_buffer    (ayFrameBufferData*);
 void               ay_clear_frame_buffer     (ayFrameBufferData*, ayVec3);
 
+// helpers
+unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut);
+
 //------------------------------commands---------------------------------------
 
 // frame buffers
@@ -182,7 +185,8 @@ void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 // buffers
 void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
 void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
-void ay_bind_buffer(ayGraphicsData*, int bufferIndex, const void*);
+void ay_bind_buffer       (ayGraphicsData*, int bufferIndex, const void*);
+void ay_bind_texture      (ayGraphicsData*, int textureIndex, const void*);
 
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);

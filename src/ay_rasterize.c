@@ -20,6 +20,7 @@ Index of this file:
 #include <stdlib.h>
 #include <string.h>
 #include "stb_image_write.h"
+#include "stb_image.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -111,6 +112,12 @@ ay_bind_vertex_buffer(ayGraphicsData* ptData, const void* pVertexBuffer)
 
 void 
 ay_bind_buffer(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer)
+{
+    ptData->tDescriptor.atDescriptors[bufferIndex].pData = ptDescBuffer;
+};
+
+void 
+ay_bind_texture(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer)
 {
     ptData->tDescriptor.atDescriptors[bufferIndex].pData = ptDescBuffer;
 };
@@ -278,7 +285,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     }
 
                     // run pixel shader
-                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &blendedVaryingData);
+                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -369,6 +376,13 @@ ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut)
     return (void*)&ptVaryingDataOut->acVaryingData[uOffset];
 }
 
+unsigned char*
+ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut)
+{
+    int iComponentsInFile = 0;
+    return stbi_load(pcFileName, iWidthOut, iHeightOut, &iComponentsInFile, 4);
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
@@ -399,3 +413,6 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor)
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
+
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
