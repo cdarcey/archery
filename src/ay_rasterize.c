@@ -31,7 +31,7 @@ typedef struct _ayGraphicsData
     const void*        pVerticies;
     ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
-    ayDescript
+    ayDescriptorInfo   tDescriptor; 
 } ayGraphicsData;
 
 typedef struct _ayFrameBufferData
@@ -109,6 +109,12 @@ ay_bind_vertex_buffer(ayGraphicsData* ptData, const void* pVertexBuffer)
     ptData->pVerticies = pVertexBuffer;
 };
 
+void 
+ay_bind_buffer(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer)
+{
+    ptData->tDescriptor.atDescriptors[bufferIndex].pData = ptDescBuffer;
+};
+
 void
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
@@ -147,10 +153,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVaryingData tVaryingData2 = {0};
 
         // function pointer returning ayVec2 containing vertex data
-        // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                                                                                 // VaryingDataOut
-        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData0);
-        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData1);
-        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szVertexStride], &tVaryingData2);
+        // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                                                           // VaryingDataOut
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData2);
 
         // frame buffer space
         ayVec2 tVertex0 = tOriginalVertex0;

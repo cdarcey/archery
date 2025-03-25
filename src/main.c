@@ -18,18 +18,10 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, const ayVaryingData* ptVaryingD
                      *pfDullFactor * ptColor->z  * 255};
 }
 
-typedef struct _ayDescriptor
-{
-    void* pData;
-} ayDescriptor;
 
-typedef struct _ayDescriptorInfo
-{
-    ayDescriptor atDescriptors[16];
-} ayDescriptorInfo;
 
 ayVec2
-ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo tInfo, ayVaryingData* ptVaryingDataOut)
+ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut)
 {
     ayVertexLayout vertLayout = tBuiltIns.tLayout;
     const char* pcVertexDataIn = pVertexDataIn;
@@ -43,9 +35,8 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
     *ptColor = tColor;
 
     float* pfDullFactor = ay_set_varying(AY_VARYING_TYPE_FLOAT, ptVaryingDataOut);
-    *pfDullFactor = 0.5f;
 
-    float* pfStorageBuffer = (float*)tInfo.atDescriptors[0].pData;
+    float* pfStorageBuffer = (float*)tInfo->atDescriptors->pData;
     *pfDullFactor = pfStorageBuffer[tBuiltIns.uVertexID];
 
     return (ayVec2){tPos.x, tPos.y};
@@ -68,7 +59,7 @@ int main()
         0.5f, 0.0f, -1.0f, -1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // top left
         0.5f, 0.0f,  1.0f, -1.0f, 0.5f, 0.0f, 1.0f, 0.0f, // top right
         0.5f, 0.0f, -1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
-        0.5f, 0.0f,  1.0f,  1.0f, 0.5f, 0.0f, 0.0f, 1.0f, // bottom left
+        0.5f, 0.0f,  1.0f,  1.0f, 0.5f, 1.0f, 0.0f, 0.0f, // bottom left
     };
 
     // index buffer
@@ -78,7 +69,7 @@ int main()
 
     // storage buffers
     float atStorageBuffer[] = {
-        0.5f, 1.0f, 0.5f, 0.0f
+        0.5f, 0.5f, 0.5f, 0.5f
     };
 
     ayPipeline tPipeline = {
@@ -102,7 +93,7 @@ int main()
     ay_bind_pipeline(ptData, &tPipeline);
     ay_bind_index_buffer(ptData, atIndexBuffer);
 
-    ay_bind_buffer(ptData, 0, atStorageBuffer);
+    ay_bind_buffer(ptData, 0, (void*)atStorageBuffer);
 
     ay_draw_indexed(ptData, 0, 6);
     ay_output_frame_buffer(ptFrameBuffer);

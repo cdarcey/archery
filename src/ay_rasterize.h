@@ -140,15 +140,25 @@ typedef struct _ayVaryingData
     uint32_t _auOffset[16];
 } ayVaryingData;
 
+typedef struct _ayDescriptor
+{
+    const void* pData;
+} ayDescriptor;
+
+typedef struct _ayDescriptorInfo
+{
+    ayDescriptor atDescriptors[16];
+} ayDescriptorInfo;
+
 // function pointers
 typedef ayVec3 (*ayPixelShader)(ayPixelShaderBuiltIns, const ayVaryingData* ptVaryingDataIn);
-typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayVaryingData* ptVaryingDataOut);
+typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
 {
-    ayVertexShader tVertexShader;
-    ayPixelShader  tPixelShader;
-    ayVertexLayout tLayout;
+    ayVertexShader   tVertexShader;
+    ayPixelShader    tPixelShader;
+    ayVertexLayout   tLayout;
 } ayPipeline;
 
 //-----------------------------------------------------------------------------
@@ -172,6 +182,7 @@ void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 // buffers
 void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
 void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
+void ay_bind_buffer(ayGraphicsData*, int bufferIndex, const void*);
 
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
