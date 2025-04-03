@@ -117,12 +117,163 @@ ay_bind_buffer(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer
 };
 
 void 
-ay_bind_texture(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer)
+ay_bind_texture(ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture)
 {
-    ptData->tDescriptor.atDescriptors[bufferIndex].pData = ptDescBuffer;
+    ptData->tDescriptor.atDescriptors[bufferIndex].pData = tTexture;
 };
 
 void
+ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
+{
+    ayVec2 vertexP = {
+        .x = 0,
+        .y = 0
+    };  
+    for(uint32_t i = 0; i < uIndexCount; i+= 3)
+    {
+
+        const uint32_t uIndex0 = uFirstVertex + i;
+        const uint32_t uIndex1 = uFirstVertex + i + 1;
+        const uint32_t uIndex2 = uFirstVertex + i + 2;
+
+        // type casting void buffer
+        const char* pcVtxBuffer = (char*)ptData->pVerticies;
+        
+        // vertex shader stage
+        // setting vertex ID
+        ayVertexShaderBuiltIns tVSBuiltIns0 = {
+            .uVertexID = uIndex0,
+            .tLayout   = ptData->ptPipeline->tLayout
+        };
+        ayVertexShaderBuiltIns tVSBuiltIns1 = {
+            .uVertexID = uIndex1,
+            .tLayout   = ptData->ptPipeline->tLayout
+        };
+        ayVertexShaderBuiltIns tVSBuiltIns2 = {
+            .uVertexID = uIndex2,
+            .tLayout   = ptData->ptPipeline->tLayout
+        };
+        // defining varying data
+        ayVaryingData tVaryingData0 = {0};
+        ayVaryingData tVaryingData1 = {0};
+        ayVaryingData tVaryingData2 = {0};
+        // function pointer returning ayVec2 containing vertex data
+        // Returns vec2        // function ptr                   // built-ins    //VertexDataIn                                                                           // VaryingDataOut
+        ayVec2 tOriginalVertex0 = ptData->ptPipeline->tVertexShader(tVSBuiltIns0, &pcVtxBuffer[uIndex0 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData0);
+        ayVec2 tOriginalVertex1 = ptData->ptPipeline->tVertexShader(tVSBuiltIns1, &pcVtxBuffer[uIndex1 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData1);
+        ayVec2 tOriginalVertex2 = ptData->ptPipeline->tVertexShader(tVSBuiltIns2, &pcVtxBuffer[uIndex2 * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, &tVaryingData2);
+        // frame buffer space
+        ayVec2 tVertex0 = tOriginalVertex0;
+        ayVec2 tVertex1 = tOriginalVertex1;
+        ayVec2 tVertex2 = tOriginalVertex2;
+        tVertex0.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex0.x);
+        tVertex1.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex1.x);
+        tVertex2.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex2.x);
+        tVertex0.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex0.y);
+        tVertex1.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex1.y);
+        tVertex2.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex2.y);
+        /* edge function for entire triangle */
+        float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
+        /* min & max to only check pixels in a bounding box*/
+        const int minX = ay_min_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int minY = ay_min_num(tVertex0.y, tVertex1.y, tVertex2.y);
+        const int maxX = ay_max_num(tVertex0.x, tVertex1.x, tVertex2.x);
+        const int maxY = ay_max_num(tVertex0.y, tVertex1.y, tVertex2.y); 
+        for(vertexP.y = 0; vertexP.y < ptData->ptFrameBufferData->uHeight; vertexP.y++)
+        {
+            for(vertexP.x = 0; vertexP.x < ptData->ptFrameBufferData->uWidth; vertexP.x++)
+            {
+                const int ABP = ay_edge_function(tVertex0, tVertex1, vertexP);
+                const int BCP = ay_edge_function(tVertex1, tVertex2, vertexP);
+                const int CAP = ay_edge_function(tVertex2, tVertex0, vertexP);
+                const float weightA = BCP / ABC;
+                const float weightB = CAP / ABC;
+                const float weightC = ABP / ABC;
+                if(ABP >= 0 && BCP >= 0 && CAP >= 0)
+                {
+                    ayPixelShaderBuiltIns tBuiltIns = {
+                        .tUV = {vertexP.x, vertexP.y}
+                    };
+                    // Varying system
+                    int varyDataOffset = 0;
+                    ayVaryingData blendedVaryingData = {0};
+                    for(uint32_t j = 0; j < 16; j++)
+                        blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
+                    int iVaryingCount = 0;
+                    for(int varyIndex = 0; varyIndex < 16; varyIndex++)
+                    {
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_NONE)
+                            break;
+                        iVaryingCount++;
+                    }
+                    for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
+                    {
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC2)
+                        {
+                            // 1st input 
+                            // Vec2 blending
+                            const ayVec2 twoFloats0 = *(ayVec2*)&tVaryingData0.acVaryingData[varyDataOffset];
+                            const ayVec2 twoFloats1 = *(ayVec2*)&tVaryingData1.acVaryingData[varyDataOffset];
+                            ayVec2 blendedVec2 = {
+                                .x = ((float)(twoFloats0.x * weightA) + (float)(twoFloats0.x * weightB) + (float)(twoFloats0.x * weightC)),
+                                .y = ((float)(twoFloats0.y * weightA) + (float)(twoFloats0.y * weightB) + (float)(twoFloats0.y * weightC)),
+                            };
+                            memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &blendedVec2, sizeof(ayVec2));
+                            varyDataOffset += sizeof(ayVec2);
+                        }
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC3)
+                        {
+                            // 2nd input 
+                            // Vec3 blending 
+                            const ayVec3* ptVecThree0 = (ayVec3*)&tVaryingData0.acVaryingData[varyDataOffset];
+                            const ayVec3* ptVecThree1 = (ayVec3*)&tVaryingData1.acVaryingData[varyDataOffset];
+                            const ayVec3* ptVecThree2 = (ayVec3*)&tVaryingData2.acVaryingData[varyDataOffset];
+                            ayVec4 tBlendedVecThree = {
+                                .x = ((float)(ptVecThree0->x * weightA) + (float)(ptVecThree1->x * weightB) + (float)(ptVecThree2->x * weightC)),
+                                .y = ((float)(ptVecThree0->y * weightA) + (float)(ptVecThree1->y * weightB) + (float)(ptVecThree2->y * weightC)),
+                                .z = ((float)(ptVecThree0->z * weightA) + (float)(ptVecThree1->z * weightB) + (float)(ptVecThree2->z * weightC))
+                            };
+                            memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedVecThree, sizeof(ayVec3));
+                            varyDataOffset += sizeof(ayVec3);
+                        }
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_VEC4)
+                        {
+                            // 3rd input
+                            // Vec4 blending 
+                            const ayVec4* ptColor0 = (ayVec4*)&tVaryingData0.acVaryingData[varyDataOffset];
+                            const ayVec4* ptColor1 = (ayVec4*)&tVaryingData1.acVaryingData[varyDataOffset];
+                            const ayVec4* ptColor2 = (ayVec4*)&tVaryingData2.acVaryingData[varyDataOffset];
+                            ayVec4 tBlendedColor = {
+                                .x = ((float)(ptColor0->x * weightA) + (float)(ptColor1->x * weightB) + (float)(ptColor2->x * weightC)),
+                                .y = ((float)(ptColor0->y * weightA) + (float)(ptColor1->y * weightB) + (float)(ptColor2->y * weightC)),
+                                .z = ((float)(ptColor0->z * weightA) + (float)(ptColor1->z * weightB) + (float)(ptColor2->z * weightC)),
+                                .w = ((float)(ptColor0->w * weightA) + (float)(ptColor1->w * weightB) + (float)(ptColor2->w * weightC))
+                            };
+                            memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &tBlendedColor, sizeof(ayVec4));
+                            varyDataOffset += sizeof(ayVec4);
+                        }
+                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_FLOAT)
+                        {
+                            // 4th input 
+                            // float blending 
+                            const float tData0 = *(float*)&tVaryingData0.acVaryingData[varyDataOffset];
+                            const float tData1 = *(float*)&tVaryingData1.acVaryingData[varyDataOffset];
+                            const float tData2 = *(float*)&tVaryingData2.acVaryingData[varyDataOffset];
+                            float fBlendedData2 = ((float)(tData0 * weightA) + (float)(tData1 * weightB) + (float)(tData2 * weightC));
+                            memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &fBlendedData2, sizeof(float));
+                            varyDataOffset += sizeof(float);
+                        }
+                    }
+                    // run pixel shader
+                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                    ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                }
+            }
+        }
+    }
+}   
+
+void    
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
     ayVec2 vertexP = {
@@ -174,9 +325,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         tVertex1.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex1.x);
         tVertex2.x = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex2.x);
 
-        tVertex0.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex0.y);
-        tVertex1.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex1.y);
-        tVertex2.y = ptData->ptFrameBufferData->uWidth * (0.5f + 0.5f * tVertex2.y);
+        tVertex0.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex0.y);
+        tVertex1.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex1.y);
+        tVertex2.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex2.y);
 
         /* edge function for entire triangle */
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
@@ -381,6 +532,19 @@ ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut)
 {
     int iComponentsInFile = 0;
     return stbi_load(pcFileName, iWidthOut, iHeightOut, &iComponentsInFile, 4);
+}
+
+ayVec3 
+ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+{
+    int iColOffset = tUV.x * uComponents * tTexture.iWidth;
+    int iRowOffset = tTexture.iWidth * uComponents * tUV.y * tTexture.iHeight;
+    int iPixelStart = iRowOffset + iColOffset;
+
+    return (ayVec3){
+        (float)tTexture.pucData[iPixelStart], 
+        (float)tTexture.pucData[iPixelStart + 1], 
+        (float)tTexture.pucData[iPixelStart + 2]};
 }
 
 //-----------------------------------------------------------------------------

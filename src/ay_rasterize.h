@@ -31,6 +31,13 @@ Index of this file:
 typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
 typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
 
+typedef struct _ayTexture
+{
+    unsigned char* pucData;
+    int            iHeight;
+    int            iWidth;
+} ayTexture;
+
 typedef enum _ayVaryingType
 {
     AY_VARYING_TYPE_NONE = 0,
@@ -120,12 +127,12 @@ typedef struct _ayVertexLayout
 
 typedef struct _ayPixelShaderBuiltIns
 {
-    ayVec2 tUV;
+    ayVec2    tUV;
 } ayPixelShaderBuiltIns;
 
 typedef struct _ayVertexShaderBuiltIns
 {
-    uint32_t uVertexID;
+    uint32_t       uVertexID;
     ayVertexLayout tLayout;
 } ayVertexShaderBuiltIns;
 
@@ -179,6 +186,9 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 
 //------------------------------commands---------------------------------------
 
+// textures
+ayVec3 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+
 // frame buffers
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 
@@ -186,12 +196,13 @@ void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
 void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
 void ay_bind_buffer       (ayGraphicsData*, int bufferIndex, const void*);
-void ay_bind_texture      (ayGraphicsData*, int textureIndex, const void*);
+void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture);
 
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
+void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount);
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
 
 //----------------------------shader helpers-----------------------------------
