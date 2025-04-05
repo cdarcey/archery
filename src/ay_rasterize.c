@@ -537,9 +537,63 @@ ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut)
 ayVec3 
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-    int iColOffset = tUV.x * uComponents * tTexture.iWidth;
-    int iRowOffset = tTexture.iWidth * uComponents * tUV.y * tTexture.iHeight;
-    int iPixelStart = iRowOffset + iColOffset;
+
+    int iPixelX = (int)(tUV.x * tTexture.iWidth);
+    int iPixelY = (int)(tUV.y * tTexture.iHeight);
+
+    iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
+    iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
+
+    int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
+
+    return (ayVec3){
+        (float)tTexture.pucData[iPixelStart], 
+        (float)tTexture.pucData[iPixelStart + 1], 
+        (float)tTexture.pucData[iPixelStart + 2]};
+}
+
+ayVec3 
+ay_bilinear_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+{
+    // need to weiht the pixel value based on pixel above, below, left, and right 
+    // should look at varying for a possible solution to this 
+
+    // need to calculate a weight per pixel and average those to give the current pixel a weight 
+    // need the color for the pixels to be sampled, below is just getting coords for each pixel top sample 
+
+    // this "solution" is dog shit, you gotta do better than that
+    //----------------------------------------------------------//
+    int iPixelX = (int)(tUV.x * tTexture.iWidth);
+    int iPixelY = (int)(tUV.y * tTexture.iHeight);
+    
+    ayVec2 iPixelSample1 = { // pixel to the right 
+        .x = (int)iPixelX + 1,
+        .y = iPixelY
+    };
+    ayVec2 iPixelSample2 = { // pixel to the left
+        .x = (int)iPixelX - 1,
+        .y = iPixelY
+    };
+    ayVec2 iPixelSample3 = { // pixel below
+        .x = (int)iPixelX + tTexture.iWidth,
+        .y = iPixelY
+    };
+    ayVec2 iPixelSample4 = { // pixel above 
+        .x = (int)iPixelX + tTexture.iWidth,
+        .y = iPixelY
+    };
+
+    int interpolatedPixel = (iPixelSample1.x *
+                             iPixelSample2.x * 
+                             iPixelSample3.x * 
+                             iPixelSample4.x) / 4; 
+
+    //----------------------------------------------------------//
+
+    iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
+    iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
+
+    int iPixelStart = (iPixelY * tTexture.iWidth + (iPixelX * interpolatedPixel)) * uComponents;
 
     return (ayVec3){
         (float)tTexture.pucData[iPixelStart], 

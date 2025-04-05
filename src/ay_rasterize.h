@@ -187,7 +187,8 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 //------------------------------commands---------------------------------------
 
 // textures
-ayVec3 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec3 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec3 ay_bilinear_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 
 // frame buffers
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);

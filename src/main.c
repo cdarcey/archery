@@ -4,15 +4,20 @@
 #include <stdlib.h>
 
 // TODO:
-//   * create a texture type/struct
-//   * little quads
-//   * add sample function to the actual ay library
-//   * alpha blending settings
+//   * create a texture type/struct                 | - Done
+//   * little quads                                 |
+//   * add sample function to the actual ay library | - Done
+//   * alpha blending settings                      |
+//   * bilinear sampling                            | - in progress
+//   * texture scaling and not clipping             | - Done
+
+#define screenWidth 416
+#define screenHeight 384
+ 
 
 ayVec3
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
-
     const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
 
     return (ayVec3){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255};
@@ -26,7 +31,7 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
 
-    ayVec2 tUV = {tBuiltIns.tUV.x / spriteTexture.iWidth, tBuiltIns.tUV.y / spriteTexture.iHeight};
+    ayVec2 tUV = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
 
     ayVec3 tColor = ay_sample_texture(spriteTexture, tUV, 4);
 
@@ -54,15 +59,15 @@ int main()
 {
 
     ayGraphicsData* ptData = initialize_graphics();
-    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(150, 150);
+    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight);
     ay_clear_frame_buffer(ptFrameBuffer, (ayVec3){255, 255, 255});
 
     int iTextureWidth = 0;
     int iTextureHeight = 0;
     ayTexture testTexture = {
-        .pucData = ay_load_png("../data/sprites.png", &iTextureWidth, &iTextureHeight),
-        .iWidth = 643,
-        .iHeight = 574
+        .pucData = ay_load_png("../data/SpriteMapExample.png", &iTextureWidth, &iTextureHeight),
+        .iWidth = 416,
+        .iHeight = 384
     };
 
     // code timing start 
@@ -124,8 +129,8 @@ int main()
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 6);
 
-    // ay_bind_pipeline(ptData, &tPipeline1);
-    // ay_draw(ptData, 0, 3);
+    //ay_bind_pipeline(ptData, &tPipeline1);
+    //ay_draw(ptData, 0, 3);
 
 
     ay_output_frame_buffer(ptFrameBuffer);
