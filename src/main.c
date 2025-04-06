@@ -8,7 +8,7 @@
 //   * little quads                                 |
 //   * add sample function to the actual ay library | - Done
 //   * alpha blending settings                      |
-//   * bilinear sampling                            | - in progress
+//   * bilinear sampling                            | - Done ???
 //   * texture scaling and not clipping             | - Done
 
 #define screenWidth 416
@@ -33,7 +33,8 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 
     ayVec2 tUV = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
 
-    ayVec3 tColor = ay_sample_texture(spriteTexture, tUV, 4);
+    // ayVec3 tColor = ay_sample_texture(spriteTexture, tUV, 4);
+    ayVec3 tColor = ay_sample_texture_bilinear(spriteTexture, tUV, 4);
 
     return (ayVec3){tColor.x, tColor.y, tColor.z};
 }

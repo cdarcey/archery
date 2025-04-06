@@ -546,6 +546,8 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 
     int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
 
+
+
     return (ayVec3){
         (float)tTexture.pucData[iPixelStart], 
         (float)tTexture.pucData[iPixelStart + 1], 
@@ -553,53 +555,84 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 }
 
 ayVec3 
-ay_bilinear_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-    // need to weiht the pixel value based on pixel above, below, left, and right 
-    // should look at varying for a possible solution to this 
 
-    // need to calculate a weight per pixel and average those to give the current pixel a weight 
-    // need the color for the pixels to be sampled, below is just getting coords for each pixel top sample 
-
-    // this "solution" is dog shit, you gotta do better than that
-    //----------------------------------------------------------//
+    // input coords
     int iPixelX = (int)(tUV.x * tTexture.iWidth);
     int iPixelY = (int)(tUV.y * tTexture.iHeight);
-    
-    ayVec2 iPixelSample1 = { // pixel to the right 
-        .x = (int)iPixelX + 1,
-        .y = iPixelY
-    };
-    ayVec2 iPixelSample2 = { // pixel to the left
-        .x = (int)iPixelX - 1,
-        .y = iPixelY
-    };
-    ayVec2 iPixelSample3 = { // pixel below
-        .x = (int)iPixelX + tTexture.iWidth,
-        .y = iPixelY
-    };
-    ayVec2 iPixelSample4 = { // pixel above 
-        .x = (int)iPixelX + tTexture.iWidth,
-        .y = iPixelY
-    };
-
-    int interpolatedPixel = (iPixelSample1.x *
-                             iPixelSample2.x * 
-                             iPixelSample3.x * 
-                             iPixelSample4.x) / 4; 
-
-    //----------------------------------------------------------//
 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
 
-    int iPixelStart = (iPixelY * tTexture.iWidth + (iPixelX * interpolatedPixel)) * uComponents;
+    // pixel to the right
+    int iRightPixelX = (int)(tUV.x * tTexture.iWidth) + 1;
+    int iRightPixelY = (int)(tUV.y * tTexture.iHeight) + 1;
+    iRightPixelX = iRightPixelX < 0 ? 0 : (iRightPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iRightPixelX);
+    iRightPixelY = iRightPixelY < 0 ? 0 : (iRightPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iRightPixelY);
 
-    return (ayVec3){
-        (float)tTexture.pucData[iPixelStart], 
-        (float)tTexture.pucData[iPixelStart + 1], 
-        (float)tTexture.pucData[iPixelStart + 2]};
+    int iOffset = (iRightPixelY * tTexture.iWidth + iRightPixelX) * uComponents;
+    ayVec3 rightSide = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
+    };
+
+    // pixel to the left
+    int iLeftPixelX = (int)(tUV.x * tTexture.iWidth) - 1;
+    int iLeftPixelY = (int)(tUV.y * tTexture.iHeight) - 1;
+    iLeftPixelX = iLeftPixelX < 0 ? 0 : (iLeftPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iLeftPixelX);
+    iLeftPixelY = iLeftPixelY < 0 ? 0 : (iLeftPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iLeftPixelY);
+
+    iOffset = (iLeftPixelY * tTexture.iWidth + iLeftPixelX) * uComponents;
+    ayVec3 leftSide = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
+    };
+
+    // pixel above
+    int iTopPixelX = (int)(tUV.x * tTexture.iWidth) - tTexture.iWidth;
+    int iTopPixelY = (int)(tUV.y * tTexture.iHeight) - tTexture.iHeight;
+    iTopPixelX = iTopPixelX < 0 ? 0 : (iTopPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iTopPixelX);
+    iTopPixelY = iTopPixelY < 0 ? 0 : (iTopPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iTopPixelY);
+
+    iOffset = (iTopPixelY * tTexture.iWidth + iTopPixelX) * uComponents;
+    ayVec3 topSide = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
+    };
+    
+    // pixel below
+    int iBottomPixelX = (int)(tUV.x * tTexture.iWidth) + tTexture.iWidth;
+    int iBottomPixelY = (int)(tUV.y * tTexture.iHeight) + tTexture.iHeight;
+    iBottomPixelX = iBottomPixelX < 0 ? 0 : (iBottomPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iBottomPixelX);
+    iBottomPixelY = iBottomPixelY < 0 ? 0 : (iBottomPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iBottomPixelY);
+
+    iOffset = (iBottomPixelY * tTexture.iWidth + iBottomPixelX) * uComponents;
+    ayVec3 bottomSide = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
+    };
+
+
+    float weightA = ((rightSide.r / 255) + (leftSide.r / 255) + (topSide.r / 255) + (bottomSide.r / 255)) / 4;
+    float weightB = ((rightSide.g / 255) + (leftSide.g / 255) + (topSide.g / 255) + (bottomSide.g / 255)) / 4;
+    float weightC = ((rightSide.b / 255) + (leftSide.b / 255) + (topSide.b / 255) + (bottomSide.b / 255)) / 4;
+
+    int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
+
+    ayVec3 tBlendedSample = {
+        .r = ((float)tTexture.pucData[iPixelStart] * weightA) +     ((float)tTexture.pucData[iPixelStart] * weightB) +     ((float)tTexture.pucData[iPixelStart] * weightC),
+        .g = ((float)tTexture.pucData[iPixelStart + 1] * weightA) + ((float)tTexture.pucData[iPixelStart + 1] * weightB) + ((float)tTexture.pucData[iPixelStart + 1] * weightC),
+        .b = ((float)tTexture.pucData[iPixelStart + 2] * weightA) + ((float)tTexture.pucData[iPixelStart + 2] * weightB) + ((float)tTexture.pucData[iPixelStart + 2] * weightC)
+    };
+
+    return tBlendedSample;
 }
+
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
