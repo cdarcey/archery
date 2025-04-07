@@ -329,10 +329,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         tVertex1.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex1.y);
         tVertex2.y = ptData->ptFrameBufferData->uHeight * (0.5f + 0.5f * tVertex2.y);
 
-        /* edge function for entire triangle */
+        // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
-        /* min & max to only check pixels in a bounding box*/
+        // min & max to only check pixels in a bounding box
         const int minX = ay_min_num(tVertex0.x, tVertex1.x, tVertex2.x);
         const int minY = ay_min_num(tVertex0.y, tVertex1.y, tVertex2.y);
         const int maxX = ay_max_num(tVertex0.x, tVertex1.x, tVertex2.x);
@@ -537,16 +537,14 @@ ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut)
 ayVec3 
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-
+    // convert UV to pixel coords
     int iPixelX = (int)(tUV.x * tTexture.iWidth);
     int iPixelY = (int)(tUV.y * tTexture.iHeight);
-
+    // clamp to texture bounds 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
-
+    // compute offset
     int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
-
-
 
     return (ayVec3){
         (float)tTexture.pucData[iPixelStart], 
@@ -554,83 +552,84 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iPixelStart + 2]};
 }
 
-ayVec3 
-ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-
-    // input coords
-    int iPixelX = (int)(tUV.x * tTexture.iWidth);
-    int iPixelY = (int)(tUV.y * tTexture.iHeight);
-
-    iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
-    iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
-
-    // pixel to the right
-    int iRightPixelX = (int)(tUV.x * tTexture.iWidth) + 1;
-    int iRightPixelY = (int)(tUV.y * tTexture.iHeight) + 1;
-    iRightPixelX = iRightPixelX < 0 ? 0 : (iRightPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iRightPixelX);
-    iRightPixelY = iRightPixelY < 0 ? 0 : (iRightPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iRightPixelY);
-
-    int iOffset = (iRightPixelY * tTexture.iWidth + iRightPixelX) * uComponents;
-    ayVec3 rightSide = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
-    };
-
-    // pixel to the left
-    int iLeftPixelX = (int)(tUV.x * tTexture.iWidth) - 1;
-    int iLeftPixelY = (int)(tUV.y * tTexture.iHeight) - 1;
-    iLeftPixelX = iLeftPixelX < 0 ? 0 : (iLeftPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iLeftPixelX);
-    iLeftPixelY = iLeftPixelY < 0 ? 0 : (iLeftPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iLeftPixelY);
-
-    iOffset = (iLeftPixelY * tTexture.iWidth + iLeftPixelX) * uComponents;
-    ayVec3 leftSide = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
-    };
-
-    // pixel above
-    int iTopPixelX = (int)(tUV.x * tTexture.iWidth) - tTexture.iWidth;
-    int iTopPixelY = (int)(tUV.y * tTexture.iHeight) - tTexture.iHeight;
-    iTopPixelX = iTopPixelX < 0 ? 0 : (iTopPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iTopPixelX);
-    iTopPixelY = iTopPixelY < 0 ? 0 : (iTopPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iTopPixelY);
-
-    iOffset = (iTopPixelY * tTexture.iWidth + iTopPixelX) * uComponents;
-    ayVec3 topSide = (ayVec3){
+    // Convert UV to exact pixel coordinates (floating point)
+    float fPixelX = tUV.x * (tTexture.iWidth - 1);
+    float fPixelY = tUV.y * (tTexture.iHeight - 1);
+    
+    // Get integer coordinates of surrounding pixels
+    int iX0 = (int)fPixelX;
+    int iY0 = (int)fPixelY;
+    int iX1 = iX0 + 1;
+    int iY1 = iY0 + 1;
+    
+    // Clamp coordinates to texture bounds
+    iX1 = iX1 >= tTexture.iWidth ? tTexture.iWidth - 1 : iX1;
+    iY1 = iY1 >= tTexture.iHeight ? tTexture.iHeight - 1 : iY1;
+    
+    // Calculate fractional parts for interpolation
+    float fFracX = fPixelX - iX0;
+    float fFracY = fPixelY - iY0;
+    
+    // Sample all 4 surrounding pixels
+    ayVec3 topLeft, bottomLeft, topRight, bottomRight; 
+    
+    // Top left 
+    int iOffset = (iY0 * tTexture.iWidth + iX0) * uComponents;
+    topLeft = (ayVec3){
         (float)tTexture.pucData[iOffset],
         (float)tTexture.pucData[iOffset + 1],
         (float)tTexture.pucData[iOffset + 2]
     };
     
-    // pixel below
-    int iBottomPixelX = (int)(tUV.x * tTexture.iWidth) + tTexture.iWidth;
-    int iBottomPixelY = (int)(tUV.y * tTexture.iHeight) + tTexture.iHeight;
-    iBottomPixelX = iBottomPixelX < 0 ? 0 : (iBottomPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iBottomPixelX);
-    iBottomPixelY = iBottomPixelY < 0 ? 0 : (iBottomPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iBottomPixelY);
-
-    iOffset = (iBottomPixelY * tTexture.iWidth + iBottomPixelX) * uComponents;
-    ayVec3 bottomSide = (ayVec3){
+    // Top right 
+    iOffset = (iY0 * tTexture.iWidth + iX1) * uComponents;
+    topRight = (ayVec3){
         (float)tTexture.pucData[iOffset],
         (float)tTexture.pucData[iOffset + 1],
         (float)tTexture.pucData[iOffset + 2]
     };
-
-
-    float weightA = ((rightSide.r / 255) + (leftSide.r / 255) + (topSide.r / 255) + (bottomSide.r / 255)) / 4;
-    float weightB = ((rightSide.g / 255) + (leftSide.g / 255) + (topSide.g / 255) + (bottomSide.g / 255)) / 4;
-    float weightC = ((rightSide.b / 255) + (leftSide.b / 255) + (topSide.b / 255) + (bottomSide.b / 255)) / 4;
-
-    int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
-
-    ayVec3 tBlendedSample = {
-        .r = ((float)tTexture.pucData[iPixelStart] * weightA) +     ((float)tTexture.pucData[iPixelStart] * weightB) +     ((float)tTexture.pucData[iPixelStart] * weightC),
-        .g = ((float)tTexture.pucData[iPixelStart + 1] * weightA) + ((float)tTexture.pucData[iPixelStart + 1] * weightB) + ((float)tTexture.pucData[iPixelStart + 1] * weightC),
-        .b = ((float)tTexture.pucData[iPixelStart + 2] * weightA) + ((float)tTexture.pucData[iPixelStart + 2] * weightB) + ((float)tTexture.pucData[iPixelStart + 2] * weightC)
+    
+    // Bottom left 
+    iOffset = (iY1 * tTexture.iWidth + iX0) * uComponents;
+    bottomLeft = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
     };
-
-    return tBlendedSample;
+    
+    // Bottom right 
+    iOffset = (iY1 * tTexture.iWidth + iX1) * uComponents;
+    bottomRight = (ayVec3){
+        (float)tTexture.pucData[iOffset],
+        (float)tTexture.pucData[iOffset + 1],
+        (float)tTexture.pucData[iOffset + 2]
+    };
+    
+    // Linear interpolation horizontally
+    // top
+    ayVec3 tTop = {
+        topLeft.r + fFracX * (bottomRight.r - topLeft.r),
+        topLeft.g + fFracX * (bottomRight.g - topLeft.g),
+        topLeft.b + fFracX * (bottomRight.b - topLeft.b)
+    };
+    
+    // bottom
+    ayVec3 tBottom = {
+        bottomLeft.r + fFracX * (bottomRight.r - bottomLeft.r),
+        bottomLeft.g + fFracX * (bottomRight.g - bottomLeft.g),
+        bottomLeft.b + fFracX * (bottomRight.b - bottomLeft.b)
+    };
+    
+    // Linear interpolation vertically (final result)
+    ayVec3 tResult = {
+        tTop.r + fFracY * (tBottom.r - tTop.r),
+        tTop.g + fFracY * (tBottom.g - tTop.g),
+        tTop.b + fFracY * (tBottom.b - tTop.b)
+    };
+    
+    return tResult;
 }
 
 

@@ -11,8 +11,8 @@
 //   * bilinear sampling                            | - Done ???
 //   * texture scaling and not clipping             | - Done
 
-#define screenWidth 416
-#define screenHeight 384
+#define screenWidth 643
+#define screenHeight 574
  
 
 ayVec3
@@ -71,6 +71,12 @@ int main()
         .iHeight = 384
     };
 
+    ayTexture testTexture1 = {
+        .pucData = ay_load_png("../data/sprites.png", &iTextureWidth, &iTextureHeight),
+        .iWidth = 643,
+        .iHeight = 574
+    };
+
     // code timing start 
     clock_t start, end;
     double cpu_time_used;
@@ -126,7 +132,7 @@ int main()
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, afVertexBuffer);
     ay_bind_pipeline(ptData, &tPipeline0);
-    ay_bind_texture(ptData, 1, &testTexture);
+    ay_bind_texture(ptData, 1, &testTexture1);
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 6);
 
