@@ -379,10 +379,11 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             // Vec2 blending
                             const ayVec2 twoFloats0 = *(ayVec2*)&tVaryingData0.acVaryingData[varyDataOffset];
                             const ayVec2 twoFloats1 = *(ayVec2*)&tVaryingData1.acVaryingData[varyDataOffset];
+                            const ayVec2 twoFloats2 = *(ayVec2*)&tVaryingData2.acVaryingData[varyDataOffset];
 
                             ayVec2 blendedVec2 = {
-                                .x = ((float)(twoFloats0.x * weightA) + (float)(twoFloats0.x * weightB) + (float)(twoFloats0.x * weightC)),
-                                .y = ((float)(twoFloats0.y * weightA) + (float)(twoFloats0.y * weightB) + (float)(twoFloats0.y * weightC)),
+                                .x = ((float)(twoFloats0.x * weightA) + (float)(twoFloats1.x * weightB) + (float)(twoFloats2.x * weightC)),
+                                .y = ((float)(twoFloats0.y * weightA) + (float)(twoFloats1.y * weightB) + (float)(twoFloats2.y * weightC)),
                             };
                             memcpy(&blendedVaryingData.acVaryingData[varyDataOffset], &blendedVec2, sizeof(ayVec2));
                             varyDataOffset += sizeof(ayVec2);

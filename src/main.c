@@ -5,11 +5,15 @@
 
 // TODO:
 //   * create a texture type/struct                 | - Done
-//   * little quads                                 |
+//   * little quads                                 | - Done
 //   * add sample function to the actual ay library | - Done
+//   * alpha aware (pixel shader returns ayVec4)    |
 //   * alpha blending settings                      |
+//   * sampling wrap modes                          |
 //   * bilinear sampling                            | - Done ???
 //   * texture scaling and not clipping             | - Done
+//   * depth buffering                              |
+//   * compute shaders (threading)                  |
 
 #define screenWidth 643
 #define screenHeight 574
@@ -20,6 +24,7 @@ ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 {
     const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
 
+    // return (ayVec4){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255, 1.0f};
     return (ayVec3){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255};
 }
 
@@ -28,13 +33,15 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 {
 
     const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
+    const ayVec2* ptUV = ay_get_varying(1, ptVaryingDataIn);
 
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
 
-    ayVec2 tUV = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
+    // ayVec2 tUV0 = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
+    // ayVec2 tUV = {ptPos->x * 0.5f + 0.5f, ptPos->y * 0.5f + 0.5f};
 
-    // ayVec3 tColor = ay_sample_texture(spriteTexture, tUV, 4);
-    ayVec3 tColor = ay_sample_texture_bilinear(spriteTexture, tUV, 4);
+    // ayVec3 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
+    ayVec3 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
 
     return (ayVec3){tColor.x, tColor.y, tColor.z};
 }
@@ -47,11 +54,15 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
 
     // get vertex attributes (inputs)
     ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 0); 
-    ayVec3 tColor = *(ayVec3*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 1);
+    ayVec2 tUV = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 1); 
+    ayVec3 tColor = *(ayVec3*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 2);
 
     // set varyings (outputs)
     ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
     *ptColor = tColor;
+
+    ayVec2* ptUV = ay_set_varying(AY_VARYING_TYPE_VEC2, ptVaryingDataOut);  // uv
+    *ptUV = tUV;
 
     return (ayVec2){tPos.x, tPos.y};
 }
@@ -83,11 +94,11 @@ int main()
     start = clock();
     
     // vertex buffer
-    float afVertexBuffer[] = { // x, y, r, g, b
-        -1.0f, -1.0f, 1.0f, 0.0f, 0.0f, // top left
-         1.0f, -1.0f, 0.0f, 1.0f, 0.0f, // top right
-        -1.0f,  1.0f, 0.0f, 0.0f, 1.0f, // bottom left
-         1.0f,  1.0f, 0.0f, 0.0f, 0.0f  // bottom right
+    float afVertexBuffer[] = { // x, y, u, v, r, g, b
+        -0.75f, -0.75f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, // top left
+         0.75f, -0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, // top right
+        -0.75f,  0.75f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, // bottom left
+         0.75f,  0.75f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f  // bottom right
     };
 
     // index buffer
@@ -101,13 +112,15 @@ int main()
         .tLayout = {
             .tAttribType = {
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
-                AY_VERTEX_ATTRIBUTE_TYPE_VEC3
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC3,
             },
             .szAttribOffset = {
                 0,
                 sizeof(ayVec2),
+                sizeof(ayVec2) + sizeof(ayVec2),
             },
-            .szVertexStride = sizeof(float) * 5,
+            .szVertexStride = sizeof(float) * 7,
 
         }
     };
@@ -118,13 +131,15 @@ int main()
         .tLayout = {
             .tAttribType = {
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC3
             },
             .szAttribOffset = {
                 0,
                 sizeof(ayVec2),
+                sizeof(ayVec2) + sizeof(ayVec2)
             },
-            .szVertexStride = sizeof(float) * 5,
+            .szVertexStride = sizeof(float) * 7,
 
         }
     };
