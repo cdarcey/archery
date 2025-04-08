@@ -158,7 +158,7 @@ typedef struct _ayDescriptorInfo
 } ayDescriptorInfo;
 
 // function pointers
-typedef ayVec3 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn);
+typedef ayVec4 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
@@ -179,7 +179,7 @@ ayGraphicsData* initialize_graphics(void);
 // framebuffer ops
 ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight);
 void               ay_output_frame_buffer    (ayFrameBufferData*);
-void               ay_clear_frame_buffer     (ayFrameBufferData*, ayVec3);
+void               ay_clear_frame_buffer     (ayFrameBufferData*, ayVec4);
 
 // helpers
 unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut);
@@ -187,8 +187,8 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 //------------------------------commands---------------------------------------
 
 // textures
-ayVec3 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
-ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec4 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec4 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 
 // frame buffers
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);

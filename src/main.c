@@ -10,29 +10,28 @@
 //   * alpha aware (pixel shader returns ayVec4)    |
 //   * alpha blending settings                      |
 //   * sampling wrap modes                          |
-//   * bilinear sampling                            | - Done ???
+//   * bilinear sampling                            | - Done
 //   * texture scaling and not clipping             | - Done
 //   * depth buffering                              |
 //   * compute shaders (threading)                  |
 
-#define screenWidth 643
-#define screenHeight 574
+#define screenWidth 416
+#define screenHeight 384
  
 
-ayVec3
+ayVec4
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
-    const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
+    const ayVec4* ptColor = ay_get_varying(0, ptVaryingDataIn);
 
-    // return (ayVec4){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255, 1.0f};
-    return (ayVec3){ptColor->x * 255, ptColor->y * 255, ptColor->z * 255};
+    return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, 1.0f};
 }
 
-ayVec3
+ayVec4
 ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
 
-    const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
+    const ayVec4* ptColor = ay_get_varying(0, ptVaryingDataIn);
     const ayVec2* ptUV = ay_get_varying(1, ptVaryingDataIn);
 
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
@@ -40,10 +39,10 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
     // ayVec2 tUV0 = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
     // ayVec2 tUV = {ptPos->x * 0.5f + 0.5f, ptPos->y * 0.5f + 0.5f};
 
-    // ayVec3 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
-    ayVec3 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
+    ayVec4 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
+    // ayVec4 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
 
-    return (ayVec3){tColor.x, tColor.y, tColor.z};
+    return (ayVec4){tColor.r, tColor.g, tColor.b};
 }
 
 ayVec2
@@ -55,10 +54,10 @@ ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ay
     // get vertex attributes (inputs)
     ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 0); 
     ayVec2 tUV = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 1); 
-    ayVec3 tColor = *(ayVec3*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 2);
+    ayVec4 tColor = *(ayVec4*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 2);
 
     // set varyings (outputs)
-    ayVec3* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);  // color
+    ayVec4* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC4, ptVaryingDataOut);  // color
     *ptColor = tColor;
 
     ayVec2* ptUV = ay_set_varying(AY_VARYING_TYPE_VEC2, ptVaryingDataOut);  // uv
@@ -72,7 +71,7 @@ int main()
 
     ayGraphicsData* ptData = initialize_graphics();
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight);
-    ay_clear_frame_buffer(ptFrameBuffer, (ayVec3){255, 255, 255});
+    ay_clear_frame_buffer(ptFrameBuffer, (ayVec4){255, 255, 255});
 
     int iTextureWidth = 0;
     int iTextureHeight = 0;
@@ -147,12 +146,12 @@ int main()
     ay_bind_frame_buffer(ptData, ptFrameBuffer);
     ay_bind_vertex_buffer(ptData, afVertexBuffer);
     ay_bind_pipeline(ptData, &tPipeline0);
-    ay_bind_texture(ptData, 1, &testTexture1);
+    ay_bind_texture(ptData, 1, &testTexture);
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 6);
 
-    //ay_bind_pipeline(ptData, &tPipeline1);
-    //ay_draw(ptData, 0, 3);
+    ay_bind_pipeline(ptData, &tPipeline1);
+    ay_draw(ptData, 0, 3);
 
 
     ay_output_frame_buffer(ptFrameBuffer);

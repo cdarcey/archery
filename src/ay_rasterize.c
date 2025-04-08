@@ -72,7 +72,7 @@ ay_min_num(int a, int b, int c)
     return c;
 };
 
-static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor);
+static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -265,7 +265,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
                         }
                     }
                     // run pixel shader
-                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                    ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -437,7 +437,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     }
 
                     // run pixel shader
-                    ayVec3 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                    ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
             }
@@ -493,7 +493,7 @@ ay_output_frame_buffer(ayFrameBufferData* ptData)
 };
 
 void
-ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec3 tColor)
+ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec4 tColor)
 {
     for(uint32_t iRow = 0; iRow < ptData->uHeight; iRow++)
     {
@@ -535,7 +535,7 @@ ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut)
     return stbi_load(pcFileName, iWidthOut, iHeightOut, &iComponentsInFile, 4);
 }
 
-ayVec3 
+ayVec4
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to pixel coords
@@ -547,13 +547,15 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
     // compute offset
     int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
 
-    return (ayVec3){
+    return (ayVec4){
         (float)tTexture.pucData[iPixelStart], 
         (float)tTexture.pucData[iPixelStart + 1], 
-        (float)tTexture.pucData[iPixelStart + 2]};
+        (float)tTexture.pucData[iPixelStart + 2],
+        (float)tTexture.pucData[iPixelStart + 3]};
 }
 
-ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+ayVec4
+ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // Convert UV to exact pixel coordinates (floating point)
     float fPixelX = tUV.x * (tTexture.iWidth - 1);
@@ -564,6 +566,9 @@ ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComp
     int iY0 = (int)fPixelY;
     int iX1 = iX0 + 1;
     int iY1 = iY0 + 1;
+
+    // TODO : do you just pass the alpha channel through when bilinear sampling 
+    int alphaPassthrough = (iX0 * tTexture.iWidth + iY0) * uComponents + 3;
     
     // Clamp coordinates to texture bounds
     iX1 = iX1 >= tTexture.iWidth ? tTexture.iWidth - 1 : iX1;
@@ -624,10 +629,11 @@ ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComp
     };
     
     // Linear interpolation vertically (final result)
-    ayVec3 tResult = {
+    ayVec4 tResult = {
         tTop.r + fFracY * (tBottom.r - tTop.r),
         tTop.g + fFracY * (tBottom.g - tTop.g),
-        tTop.b + fFracY * (tBottom.b - tTop.b)
+        tTop.b + fFracY * (tBottom.b - tTop.b),
+        //(float)tTexture.pucData[alphaPassthrough]
     };
     
     return tResult;
@@ -639,7 +645,7 @@ ayVec3 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComp
 //-----------------------------------------------------------------------------
 
 static void
-ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor)
+ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
 {
     if(input.x < 0)
         return;
@@ -653,9 +659,10 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec3 tColor)
     int iRowOffset = ptData->uWidth * 3 * input.y;
     int iPixelStart = iRowOffset + input.x * 3;
 
-    ptData->pucData[iPixelStart + 0] = (unsigned char)tColor.x;
-    ptData->pucData[iPixelStart + 1] = (unsigned char)tColor.y;
-    ptData->pucData[iPixelStart + 2] = (unsigned char)tColor.z;
+    ptData->pucData[iPixelStart + 0] = (unsigned char)tColor.r;
+    ptData->pucData[iPixelStart + 1] = (unsigned char)tColor.g;
+    ptData->pucData[iPixelStart + 2] = (unsigned char)tColor.b;
+    ptData->pucData[iPixelStart + 2] = (unsigned char)tColor.a;
 };
 
 //-----------------------------------------------------------------------------
