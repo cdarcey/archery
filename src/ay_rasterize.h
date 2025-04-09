@@ -87,7 +87,6 @@ typedef union _ayVec4
             ayVec3 xyz;
             struct{ float x, y, z;};
         };
-
         float w;
     };
     struct

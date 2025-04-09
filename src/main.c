@@ -7,7 +7,7 @@
 //   * create a texture type/struct                 | - Done
 //   * little quads                                 | - Done
 //   * add sample function to the actual ay library | - Done
-//   * alpha aware (pixel shader returns ayVec4)    |
+//   * alpha aware (pixel shader returns ayVec4)    | - Done 
 //   * alpha blending settings                      |
 //   * sampling wrap modes                          |
 //   * bilinear sampling                            | - Done
@@ -15,18 +15,21 @@
 //   * depth buffering                              |
 //   * compute shaders (threading)                  |
 
-#define screenWidth 416
+#define screenWidth  416
 #define screenHeight 384
  
-
+// for triangle 
 ayVec4
 ayPixelShader_0(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
     const ayVec4* ptColor = ay_get_varying(0, ptVaryingDataIn);
 
-    return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, 1.0f};
+    return (ayVec4){ptColor->r * 255 * ptColor->a, 
+                    ptColor->g * 255 * ptColor->a, 
+                    ptColor->b * 255 * ptColor->a};
 }
 
+// for texture 
 ayVec4
 ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
@@ -36,13 +39,10 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
 
-    // ayVec2 tUV0 = {tBuiltIns.tUV.x / screenWidth, tBuiltIns.tUV.y / screenHeight};
-    // ayVec2 tUV = {ptPos->x * 0.5f + 0.5f, ptPos->y * 0.5f + 0.5f};
-
     ayVec4 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
     // ayVec4 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
 
-    return (ayVec4){tColor.r, tColor.g, tColor.b};
+    return (ayVec4){tColor.r, tColor.g, tColor.b, tColor.a};
 }
 
 ayVec2
@@ -71,19 +71,19 @@ int main()
 
     ayGraphicsData* ptData = initialize_graphics();
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight);
-    ay_clear_frame_buffer(ptFrameBuffer, (ayVec4){255, 255, 255});
+    ay_clear_frame_buffer(ptFrameBuffer, (ayVec4){255, 255, 255, 1.0f});
 
     int iTextureWidth = 0;
     int iTextureHeight = 0;
     ayTexture testTexture = {
         .pucData = ay_load_png("../data/SpriteMapExample.png", &iTextureWidth, &iTextureHeight),
-        .iWidth = 416,
+        .iWidth  = 416,
         .iHeight = 384
     };
 
     ayTexture testTexture1 = {
         .pucData = ay_load_png("../data/sprites.png", &iTextureWidth, &iTextureHeight),
-        .iWidth = 643,
+        .iWidth  = 643,
         .iHeight = 574
     };
 
@@ -93,11 +93,11 @@ int main()
     start = clock();
     
     // vertex buffer
-    float afVertexBuffer[] = { // x, y, u, v, r, g, b
-        -0.75f, -0.75f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, // top left
-         0.75f, -0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, // top right
-        -0.75f,  0.75f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, // bottom left
-         0.75f,  0.75f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f  // bottom right
+    float afVertexBuffer[] = { // x, y, u, v, r, g, b, a
+        -0.75f, -0.75f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.5f, // top left
+         0.75f, -0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.5f, // top right
+        -0.75f,  0.75f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.5f, // bottom left
+         0.75f,  0.75f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.5f, // bottom right
     };
 
     // index buffer
@@ -112,14 +112,14 @@ int main()
             .tAttribType = {
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
-                AY_VERTEX_ATTRIBUTE_TYPE_VEC3,
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC4,
             },
             .szAttribOffset = {
                 0,
                 sizeof(ayVec2),
                 sizeof(ayVec2) + sizeof(ayVec2),
             },
-            .szVertexStride = sizeof(float) * 7,
+            .szVertexStride = sizeof(float) * 8,
 
         }
     };
@@ -131,14 +131,14 @@ int main()
             .tAttribType = {
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
-                AY_VERTEX_ATTRIBUTE_TYPE_VEC3
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC4,
             },
             .szAttribOffset = {
                 0,
                 sizeof(ayVec2),
-                sizeof(ayVec2) + sizeof(ayVec2)
+                sizeof(ayVec2) + sizeof(ayVec2),
             },
-            .szVertexStride = sizeof(float) * 7,
+            .szVertexStride = sizeof(float) * 8,
 
         }
     };
@@ -149,12 +149,10 @@ int main()
     ay_bind_texture(ptData, 1, &testTexture);
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_draw_indexed(ptData, 0, 6);
-
     ay_bind_pipeline(ptData, &tPipeline1);
-    ay_draw(ptData, 0, 3);
-
-
+    // ay_draw_indexed(ptData, 0, 3);  
     ay_output_frame_buffer(ptFrameBuffer);
+
 
     // code timing end 
     end = clock();
