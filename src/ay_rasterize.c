@@ -517,6 +517,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
                     // run pixel shader
                     ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                    tFinalColor.r *= tFinalColor.a / 255;
+                    tFinalColor.g *= tFinalColor.a / 255;
+                    tFinalColor.b *= tFinalColor.a / 255;
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
                 // Incrementally update edge functions for next pixel in row
@@ -627,8 +630,8 @@ ayVec4
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to pixel coords
-    int iPixelX = (int)(tUV.x * tTexture.iWidth);
-    int iPixelY = (int)(tUV.y * tTexture.iHeight);
+    int iPixelX = tUV.x * (tTexture.iWidth - 1);
+    int iPixelY = tUV.y * (tTexture.iHeight - 1);
     // clamp to texture bounds 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
@@ -655,8 +658,9 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
     int iX1 = iX0 + 1;
     int iY1 = iY0 + 1;
 
-    // TODO : do you just pass the alpha channel through when bilinear sampling 
-    int alphaPassthrough = (iX0 * tTexture.iWidth + iY0) * uComponents + 3;
+    // compute offset
+    int iOffsetStartForPassthrough = (iY0 * tTexture.iWidth + iX0) * uComponents;
+    float alphaPassthrough = (float)tTexture.pucData[iOffsetStartForPassthrough + 3];
     
     // Clamp coordinates to texture bounds
     iX1 = iX1 >= tTexture.iWidth ? tTexture.iWidth - 1 : iX1;
@@ -721,6 +725,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         tTop.r + fFracY * (tBottom.r - tTop.r),
         tTop.g + fFracY * (tBottom.g - tTop.g),
         tTop.b + fFracY * (tBottom.b - tTop.b),
+        alphaPassthrough
     };
     
     return tResult;
