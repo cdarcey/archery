@@ -138,9 +138,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 
     for(uint32_t i = 0; i < uIndexCount; i+= 3)
     {
-        const uint32_t uIndex0 = uFirstVertex + i;
-        const uint32_t uIndex1 = uFirstVertex + i + 1;
-        const uint32_t uIndex2 = uFirstVertex + i + 2;
+        const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstVertex + i];
+        const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstVertex + i + 1];
+        const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstVertex + i + 2];
 
         // type casting void buffer
         const char* pcVtxBuffer = (char*)ptData->pVerticies;
@@ -313,6 +313,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 
                     // run pixel shader
                     ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                    tFinalColor.r *= tFinalColor.a / 255;
+                    tFinalColor.g *= tFinalColor.a / 255;
+                    tFinalColor.b *= tFinalColor.a / 255;
                     ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                 }
                 // Incrementally update edge functions for next pixel in row
