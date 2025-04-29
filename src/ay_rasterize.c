@@ -46,7 +46,7 @@ typedef struct _ayFrameBufferData
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
-static inline int
+static inline float
 ay_edge_function(ayVec2 one, ayVec2 two, ayVec2 three)
 {
     return(two.x - one.x) * (three.y - one.y) - (two.y - one.y) * (three.x - one.x);
@@ -188,10 +188,10 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         // Bounding box with clamping
-        const int minX = ay_max(0, ay_min3(tVertex0.x, tVertex1.x, tVertex2.x) - 1);
-        const int minY = ay_max(0, ay_min3(tVertex0.y, tVertex1.y, tVertex2.y) - 1);
-        const int maxX = ay_min(fbWidth-1, ay_max3(tVertex0.x, tVertex1.x, tVertex2.x) + 1);
-        const int maxY = ay_min(fbHeight-1, ay_max3(tVertex0.y, tVertex1.y, tVertex2.y) + 1);
+        const int minX = ay_max(0, ay_min3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) - 1);
+        const int minY = ay_max(0, ay_min3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) - 1);
+        const int maxX = ay_min(fbWidth-1, ay_max3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) + 1);
+        const int maxY = ay_min(fbHeight-1, ay_max3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) + 1);
 
         // Precompute edge function deltas
         const float ABa = tVertex0.y - tVertex1.y;
@@ -213,13 +213,13 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 
         const float invABC = 1.0f / ABC;
 
-        for(vertexP.y = minY; vertexP.y <= maxY; vertexP.y++)
+        for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
         {
             float rowABP = ABP;
             float rowBCP = BCP;
             float rowCAP = CAP;
         
-            for(vertexP.x = minX; vertexP.x <= maxX; vertexP.x++)
+            for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
             {
                 if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
                 {
@@ -395,10 +395,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         // Bounding box with clamping
-        const int minX = ay_max(0, ay_min3(tVertex0.x, tVertex1.x, tVertex2.x) - 1);
-        const int minY = ay_max(0, ay_min3(tVertex0.y, tVertex1.y, tVertex2.y) - 1);
-        const int maxX = ay_min(fbWidth-1, ay_max3(tVertex0.x, tVertex1.x, tVertex2.x) + 1);
-        const int maxY = ay_min(fbHeight-1, ay_max3(tVertex0.y, tVertex1.y, tVertex2.y) + 1);
+        const int minX = ay_max(0, ay_min3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) - 1);
+        const int minY = ay_max(0, ay_min3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) - 1);
+        const int maxX = ay_min(fbWidth-1, ay_max3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) + 1);
+        const int maxY = ay_min(fbHeight-1, ay_max3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) + 1);
 
         // Precompute edge function deltas
         const float ABa = tVertex0.y - tVertex1.y;
@@ -420,13 +420,13 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         const float invABC = 1.0f / ABC;
 
-        for(vertexP.y = minY; vertexP.y <= maxY; vertexP.y++)
+        for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
         {
             float rowABP = ABP;
             float rowBCP = BCP;
             float rowCAP = CAP;
         
-            for(vertexP.x = minX; vertexP.x <= maxX; vertexP.x++)
+            for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
             {
                 if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
                 {
@@ -545,22 +545,22 @@ ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_
     const void* ptResult = pcVertexDataIn;
     if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC2)
     {
-        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        uint32_t uOffset = (uint32_t)tLayout.szAttribOffset[tAttribLocation];
         ptResult = (char*)ptResult + uOffset;
     }
     else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC3)
     {
-        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        uint32_t uOffset = (uint32_t)tLayout.szAttribOffset[tAttribLocation];
         ptResult = (char*)ptResult + uOffset;
     }
     else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_VEC4)
     {
-        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        uint32_t uOffset = (uint32_t)tLayout.szAttribOffset[tAttribLocation];
         ptResult = (char*)ptResult + uOffset;
     }
     else if(tLayout.tAttribType[tAttribLocation] == AY_VERTEX_ATTRIBUTE_TYPE_FLOAT)
     {
-        uint32_t uOffset = tLayout.szAttribOffset[tAttribLocation];
+        uint32_t uOffset = (uint32_t)tLayout.szAttribOffset[tAttribLocation];
         ptResult = (char*)ptResult + uOffset;
     }
     return (void*)ptResult;
@@ -593,7 +593,7 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec4 tColor)
     {
         for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++)
         {
-            ay_set_pixel(ptData, (ayVec2){iColumn, iRow}, tColor);
+            ay_set_pixel(ptData, (ayVec2){(float)iColumn, (float)iRow}, tColor);
         }
     }
 };
@@ -633,8 +633,8 @@ ayVec4
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to pixel coords
-    int iPixelX = tUV.x * (tTexture.iWidth - 1);
-    int iPixelY = tUV.y * (tTexture.iHeight - 1);
+    int iPixelX = (int)(tUV.x * (tTexture.iWidth - 1));
+    int iPixelY = (int)(tUV.y * (tTexture.iHeight - 1));
     // clamp to texture bounds 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
@@ -751,8 +751,8 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
     if(input.y >= ptData->uHeight)
         return;
 
-    int iRowOffset = ptData->uWidth * 3 * input.y;
-    int iPixelStart = iRowOffset + input.x * 3;
+    int iRowOffset = ptData->uWidth * 3 * (int)input.y;
+    int iPixelStart = iRowOffset + (int)input.x * 3;
 
     ptData->pucData[iPixelStart + 0] = (unsigned char)tColor.r;
     ptData->pucData[iPixelStart + 1] = (unsigned char)tColor.g;

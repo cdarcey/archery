@@ -83,11 +83,6 @@ int main()
         .iHeight = 384
     };
 
-    ayTexture testTexture1 = {
-        .pucData = ay_load_png("../data/sprites.png", &iTextureWidth, &iTextureHeight),
-        .iWidth  = 643,
-        .iHeight = 574
-    };
 
     // code timing start 
     clock_t start, end;
