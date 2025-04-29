@@ -582,13 +582,16 @@ ay_output_frame_buffer(ayFrameBufferData* ptData)
 void
 ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec4 tColor)
 {
-    for(uint32_t iRow = 0; iRow < ptData->uHeight; iRow++)
-    {
-        for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++)
-        {
-            ay_set_pixel(ptData, (ayVec2){(float)iColumn, (float)iRow}, tColor);
-        }
-    }
+
+    memset(ptData->pucData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
+
+    // for(uint32_t iRow = 0; iRow < ptData->uHeight; iRow++)
+    // {
+    //     for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++;
+    //     {
+    //         ay_set_pixel(ptData, (ayVec2){(float)iColumn, (float)iRow}, tColor);
+    //     }
+    // }
 };
 
 void*
