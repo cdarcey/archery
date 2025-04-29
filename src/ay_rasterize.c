@@ -35,13 +35,6 @@ typedef struct _ayGraphicsData
     ayDescriptorInfo   tDescriptor; 
 } ayGraphicsData;
 
-typedef struct _ayFrameBufferData
-{
-    uint32_t       uWidth;
-    uint32_t       uHeight;
-    unsigned char* pucData;
-} ayFrameBufferData;
-
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
@@ -574,8 +567,8 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
 
     ptData->uWidth = uWidth;
     ptData->uHeight = uHeight;
-    ptData->pucData = malloc(sizeof(char) * 3 * uWidth * uHeight);
-    memset(ptData->pucData, 0, sizeof(char) * 3 * uWidth * uHeight);
+    ptData->pucData = malloc(sizeof(char) * 4 * uWidth * uHeight);
+    memset(ptData->pucData, 0, sizeof(char) * 4 * uWidth * uHeight);
 
     return ptData;
 };
@@ -583,7 +576,7 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
 void
 ay_output_frame_buffer(ayFrameBufferData* ptData)
 {
-    stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 3, ptData->pucData, sizeof(char) * 3 * ptData->uWidth);
+    stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 4, ptData->pucData, sizeof(char) * 4 * ptData->uWidth);
 };
 
 void
@@ -751,12 +744,13 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
     if(input.y >= ptData->uHeight)
         return;
 
-    int iRowOffset = ptData->uWidth * 3 * (int)input.y;
-    int iPixelStart = iRowOffset + (int)input.x * 3;
+    int iRowOffset = ptData->uWidth * 4 * (int)input.y;
+    int iPixelStart = iRowOffset + (int)input.x * 4;
 
     ptData->pucData[iPixelStart + 0] = (unsigned char)tColor.r;
     ptData->pucData[iPixelStart + 1] = (unsigned char)tColor.g;
     ptData->pucData[iPixelStart + 2] = (unsigned char)tColor.b;
+    ptData->pucData[iPixelStart + 3] = (unsigned char)tColor.a;
 
 };
 

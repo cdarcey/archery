@@ -28,8 +28,14 @@ Index of this file:
 // [SECTION] structs
 //-----------------------------------------------------------------------------
 
-typedef struct _ayGraphicsData    ayGraphicsData;    // opaque
-typedef struct _ayFrameBufferData ayFrameBufferData; // opaque
+typedef struct _ayGraphicsData ayGraphicsData;    // opaque
+
+typedef struct _ayFrameBufferData
+{
+    uint32_t       uWidth;
+    uint32_t       uHeight;
+    unsigned char* pucData;
+} ayFrameBufferData;
 
 typedef struct _ayTexture
 {
