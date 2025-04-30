@@ -644,6 +644,39 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iPixelStart + 3]};
 }
 
+ayVec4 
+ay_extract_sprite_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, int iSpriteX, int iSpriteY, int iSpriteWidth, int iSpriteHeight)
+{
+    // Convert sprite bounds to normalized UV coordinates
+    float startU = (float)iSpriteX / tTexture.iWidth;
+    float startV = (float)iSpriteY / tTexture.iHeight;
+    float endU = (float)(iSpriteX + iSpriteWidth) / tTexture.iWidth;
+    float endV = (float)(iSpriteY + iSpriteHeight) / tTexture.iHeight;
+
+    // Map sprite-local UV (0-1) to atlas UV
+    float atlasU = startU + tUV.x * (endU - startU);
+    float atlasV = startV + tUV.y * (endV - startV);
+
+    // Convert to pixel coordinates
+    int iPixelX = (int)(atlasU * (tTexture.iWidth - 1));
+    int iPixelY = (int)(atlasV * (tTexture.iHeight - 1));
+
+    // Clamp to texture bounds
+    iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
+    iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
+
+    // Compute offset and sample
+    int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
+
+    return (ayVec4){
+    (float)tTexture.pucData[iPixelStart],
+    (float)tTexture.pucData[iPixelStart + 1],
+    (float)tTexture.pucData[iPixelStart + 2],
+    (float)tTexture.pucData[iPixelStart + 3]
+    };
+}
+
+
 ayVec4
 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {

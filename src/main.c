@@ -16,8 +16,8 @@
 //   * compute shaders (threading)                  |
 
 
-#define screenWidth  416
-#define screenHeight 384
+#define screenWidth  352
+#define screenHeight 352
  
 // for triangle 
 ayVec4
@@ -41,10 +41,11 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
 
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
 
-    ayVec4 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
-    // ayVec4 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
+    // ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
+    // ayVec4 spriteColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
+    ayVec4 spriteColor = ay_extract_sprite_texture(spriteTexture, *ptUV, 4, 0, 321, 32, 32);
 
-    return (ayVec4){tColor.r, tColor.g, tColor.b, tColor.a};
+    return (ayVec4){spriteColor.r, spriteColor.g, spriteColor.b, spriteColor.a};
 }
 
 ayVec2
@@ -78,9 +79,9 @@ int main()
     int iTextureWidth = 0;
     int iTextureHeight = 0;
     ayTexture testTexture = {
-        .pucData = ay_load_png("../data/SpriteMapExample.png", &iTextureWidth, &iTextureHeight),
-        .iWidth  = 416,
-        .iHeight = 384
+        .pucData = ay_load_png("../../assets/spritesheet.png", &iTextureWidth, &iTextureHeight),
+        .iWidth  = 352,
+        .iHeight = 352
     };
 
 
@@ -91,10 +92,10 @@ int main()
     
     // vertex buffer
     float afVertexBuffer[] = { // x, y, u, v, r, g, b, a
-        -0.75f, -0.75f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.75f, // top left
-         0.75f, -0.75f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.75f, // top right
-        -0.75f,  0.75f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.75f, // bottom left
-         0.75f,  0.75f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.75f, // bottom right
+        -0.25f, -0.25f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.75f, // top left
+         0.25f, -0.25f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.75f, // top right
+        -0.25f,  0.25f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.75f, // bottom left
+         0.25f,  0.25f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.75f, // bottom right
     };
 
     // index buffer
@@ -145,17 +146,16 @@ int main()
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_bind_texture(ptData, 1, &testTexture);
 
+    // draw triangle
+    ay_bind_pipeline(ptData, &tPipeline1);
+    ay_draw_indexed(ptData, 2, 3);
+
     // draw texture
     ay_bind_pipeline(ptData, &tPipeline0);
     ay_draw(ptData, 0, 6);  
 
-    // draw triangle
-    ay_bind_pipeline(ptData, &tPipeline1);
-    ay_draw(ptData, 0, 3);
-
     // output frame
     ay_output_frame_buffer(ptFrameBuffer);
-
 
     // code timing end 
     end = clock();
