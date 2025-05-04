@@ -131,9 +131,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 
     for(uint32_t i = 0; i < uIndexCount; i+= 3)
     {
-        const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstVertex + i];
-        const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstVertex + i + 1];
-        const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstVertex + i + 2];
+        const uint32_t uIndex0 = uFirstVertex + i;
+        const uint32_t uIndex1 = uFirstVertex + i + 1;
+        const uint32_t uIndex2 = uFirstVertex + i + 2;
 
         // type casting void buffer
         const char* pcVtxBuffer = (char*)ptData->pVerticies;
@@ -325,8 +325,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 }
 
 void    
-ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount) /**  clock wise vertacies required */
 {
+    /**  clock wise vertacies required */
     // calculate frame buffer size
     const int fbWidth = ptData->ptFrameBufferData->uWidth;
     const int fbHeight = ptData->ptFrameBufferData->uHeight;
@@ -580,18 +581,9 @@ ay_output_frame_buffer(ayFrameBufferData* ptData)
 };
 
 void
-ay_clear_frame_buffer(ayFrameBufferData* ptData, ayVec4 tColor)
+ay_clear_frame_buffer(ayFrameBufferData* ptData)
 {
-
     memset(ptData->pucData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
-
-    // for(uint32_t iRow = 0; iRow < ptData->uHeight; iRow++)
-    // {
-    //     for(uint32_t iColumn = 0; iColumn < ptData->uWidth; iColumn++;
-    //     {
-    //         ay_set_pixel(ptData, (ayVec2){(float)iColumn, (float)iRow}, tColor);
-    //     }
-    // }
 };
 
 void*
@@ -654,8 +646,8 @@ ay_extract_sprite_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, 
     float endV = (float)(iSpriteY + iSpriteHeight) / tTexture.iHeight;
 
     // Map sprite-local UV (0-1) to atlas UV
-    float atlasU = startU + tUV.x * (endU - startU);
-    float atlasV = startV + tUV.y * (endV - startV);
+    float atlasU = startU + (tUV.x) * (endU - startU);
+    float atlasV = startV + (tUV.y) * (endV - startV);
 
     // Convert to pixel coordinates
     int iPixelX = (int)(atlasU * (tTexture.iWidth - 1));

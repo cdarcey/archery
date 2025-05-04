@@ -184,7 +184,7 @@ ayGraphicsData* initialize_graphics(void);
 // framebuffer ops
 ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight);
 void               ay_output_frame_buffer    (ayFrameBufferData*);
-void               ay_clear_frame_buffer     (ayFrameBufferData*, ayVec4);
+void               ay_clear_frame_buffer     (ayFrameBufferData*);
 
 // helpers
 unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightOut);
@@ -209,8 +209,10 @@ void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* t
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
-void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount);
-void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount);
+// clock wise vertacies
+void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount); 
+// clock wise vertacies
+void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount); 
 
 //----------------------------shader helpers-----------------------------------
 
