@@ -165,8 +165,8 @@ void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indice
     
     for (int y = 0; y < rows; y++) {
         for (int x = 0; x < cols; x++) {
-            int quad_idx = y * cols + x;
-            int base_vtx = quad_idx * 32; // 4 vertices × 8 components
+            int QuadIdx = y * cols + x;
+            int BaseVtx = QuadIdx * 32; // 4 vertices × 8 components
             
             float left = -1.0f + x * fQuadWidth;
             float right = left + fQuadWidth;
@@ -179,89 +179,89 @@ void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indice
                 r = (float)rand() / (float)RAND_MAX;
                 g = (float)rand() / (float)RAND_MAX;
                 b = (float)rand() / (float)RAND_MAX;
-                a = 1.0f; // Keep alpha at 1.0
+                a = 1.0f; // alpha does not change
             }
             
             // Top-left (x, y, u, v, r, g, b, a)
-            vertices[base_vtx + 0] = left;
-            vertices[base_vtx + 1] = top;
-            vertices[base_vtx + 2] = 0.0f;
-            vertices[base_vtx + 3] = 0.0f;
-            vertices[base_vtx + 4] = r;
-            vertices[base_vtx + 5] = g;
-            vertices[base_vtx + 6] = b;
-            vertices[base_vtx + 7] = a;
+            vertices[BaseVtx + 0] = left;
+            vertices[BaseVtx + 1] = top;
+            vertices[BaseVtx + 2] = 0.0f;
+            vertices[BaseVtx + 3] = 0.0f;
+            vertices[BaseVtx + 4] = r;
+            vertices[BaseVtx + 5] = g;
+            vertices[BaseVtx + 6] = b;
+            vertices[BaseVtx + 7] = a;
             
             // Top-right
-            vertices[base_vtx + 8] = right;
-            vertices[base_vtx + 9] = top;
-            vertices[base_vtx + 10] = 1.0f;
-            vertices[base_vtx + 11] = 0.0f;
-            vertices[base_vtx + 12] = r;
-            vertices[base_vtx + 13] = g;
-            vertices[base_vtx + 14] = b;
-            vertices[base_vtx + 15] = a;
+            vertices[BaseVtx + 8] = right;
+            vertices[BaseVtx + 9] = top;
+            vertices[BaseVtx + 10] = 1.0f;
+            vertices[BaseVtx + 11] = 0.0f;
+            vertices[BaseVtx + 12] = r;
+            vertices[BaseVtx + 13] = g;
+            vertices[BaseVtx + 14] = b;
+            vertices[BaseVtx + 15] = a;
             
             // Bottom-left
-            vertices[base_vtx + 16] = left;
-            vertices[base_vtx + 17] = bottom;
-            vertices[base_vtx + 18] = 0.0f;
-            vertices[base_vtx + 19] = 1.0f;
-            vertices[base_vtx + 20] = r;
-            vertices[base_vtx + 21] = g;
-            vertices[base_vtx + 22] = b;
-            vertices[base_vtx + 23] = a;
+            vertices[BaseVtx + 16] = left;
+            vertices[BaseVtx + 17] = bottom;
+            vertices[BaseVtx + 18] = 0.0f;
+            vertices[BaseVtx + 19] = 1.0f;
+            vertices[BaseVtx + 20] = r;
+            vertices[BaseVtx + 21] = g;
+            vertices[BaseVtx + 22] = b;
+            vertices[BaseVtx + 23] = a;
             
             // Bottom-right
-            vertices[base_vtx + 24] = right;
-            vertices[base_vtx + 25] = bottom;
-            vertices[base_vtx + 26] = 1.0f;
-            vertices[base_vtx + 27] = 1.0f;
-            vertices[base_vtx + 28] = r;
-            vertices[base_vtx + 29] = g;
-            vertices[base_vtx + 30] = b;
-            vertices[base_vtx + 31] = a;
+            vertices[BaseVtx + 24] = right;
+            vertices[BaseVtx + 25] = bottom;
+            vertices[BaseVtx + 26] = 1.0f;
+            vertices[BaseVtx + 27] = 1.0f;
+            vertices[BaseVtx + 28] = r;
+            vertices[BaseVtx + 29] = g;
+            vertices[BaseVtx + 30] = b;
+            vertices[BaseVtx + 31] = a;
             
             if(DEBUG)
             {
                 // Debug print for each quad
-                printf("Quad %d (Col %d, Row %d):\n", quad_idx, x, y);
+                printf("Quad %d (Col %d, Row %d):\n", QuadIdx, x, y);
                 printf("  TL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[base_vtx], vertices[base_vtx+1],
-                       vertices[base_vtx+2], vertices[base_vtx+3],
-                       vertices[base_vtx+4], vertices[base_vtx+5],
-                       vertices[base_vtx+6], vertices[base_vtx+7]);
+                       vertices[BaseVtx], vertices[BaseVtx+1],
+                       vertices[BaseVtx+2], vertices[BaseVtx+3],
+                       vertices[BaseVtx+4], vertices[BaseVtx+5],
+                       vertices[BaseVtx+6], vertices[BaseVtx+7]);
                 printf("  TR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[base_vtx+8], vertices[base_vtx+9],
-                       vertices[base_vtx+10], vertices[base_vtx+11],
-                       vertices[base_vtx+12], vertices[base_vtx+13],
-                       vertices[base_vtx+14], vertices[base_vtx+15]);
+                       vertices[BaseVtx+8], vertices[BaseVtx+9],
+                       vertices[BaseVtx+10], vertices[BaseVtx+11],
+                       vertices[BaseVtx+12], vertices[BaseVtx+13],
+                       vertices[BaseVtx+14], vertices[BaseVtx+15]);
                 printf("  BL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[base_vtx+16], vertices[base_vtx+17],
-                       vertices[base_vtx+18], vertices[base_vtx+19],
-                       vertices[base_vtx+20], vertices[base_vtx+21],
-                       vertices[base_vtx+22], vertices[base_vtx+23]);
+                       vertices[BaseVtx+16], vertices[BaseVtx+17],
+                       vertices[BaseVtx+18], vertices[BaseVtx+19],
+                       vertices[BaseVtx+20], vertices[BaseVtx+21],
+                       vertices[BaseVtx+22], vertices[BaseVtx+23]);
                 printf("  BR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n\n", 
-                       vertices[base_vtx+24], vertices[base_vtx+25],
-                       vertices[base_vtx+26], vertices[base_vtx+27],
-                       vertices[base_vtx+28], vertices[base_vtx+29],
-                       vertices[base_vtx+30], vertices[base_vtx+31]);
+                       vertices[BaseVtx+24], vertices[BaseVtx+25],
+                       vertices[BaseVtx+26], vertices[BaseVtx+27],
+                       vertices[BaseVtx+28], vertices[BaseVtx+29],
+                       vertices[BaseVtx+30], vertices[BaseVtx+31]);
             }
         }
     }
     
-    // Generate indices (unchanged)
+    // Generate indices for index buffer
     for (int i = 0; i < cols * rows; i++) {
-        int base_idx = i * 4;
-        int base_ind = i * 6;
+        int ibaseIdx = i * 4;
+        int iBaseInd = i * 6;
         
-        indices[base_ind + 0] = base_idx + 0;
-        indices[base_ind + 1] = base_idx + 1;
-        indices[base_ind + 2] = base_idx + 2;
+        indices[iBaseInd + 0] = ibaseIdx + 0;
+        indices[iBaseInd + 1] = ibaseIdx + 1;
+        indices[iBaseInd + 2] = ibaseIdx + 2;
         
-        indices[base_ind + 3] = base_idx + 1;
-        indices[base_ind + 4] = base_idx + 3;
-        indices[base_ind + 5] = base_idx + 2;
+        indices[iBaseInd + 3] = ibaseIdx + 1;
+        indices[iBaseInd + 4] = ibaseIdx + 3;
+        indices[iBaseInd + 5] = ibaseIdx + 2;
     }
 }
 
@@ -277,7 +277,7 @@ ayVec2 transdormGridtoIsometric(float x, float y)
 ayVec2 applyIsometricToUV(float u, float v) 
 {
     ayVec2 result;
-    result.u = u - v;         // Same as cartesian → isometric
-    result.v = (u + v) / 2;   // Y is halved
+    result.u = u - v;         
+    result.v = (u + v) / 2;   
     return result;
 }
