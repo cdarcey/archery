@@ -16,14 +16,15 @@
 //   * texture scaling and not clipping             | - Done
 //   * depth buffering                              |
 //   * compute shaders (threading)                  |
-//   * fix applyIsometricToUV function              |
 
 
-#define screenWidth  256
-#define screenHeight 256
 
-ayVec2 applyIsometricToUV(float u, float v);
-ayVec2 transdormGridtoIsometric(float x, float y);
+#define screenWidth  1080
+#define screenHeight 1080
+
+
+ayVec2 transform_grid_to_isometric_view(float x, float y);
+
 void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indices, bool addRandomColor, bool DEBUG);
 
 // for texture 
@@ -34,45 +35,31 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
     const ayVec4* ptColor = ay_get_varying(0, ptVaryingDataIn);
     const ayVec2* ptUV = ay_get_varying(1, ptVaryingDataIn);
 
-    ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
-
-    ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
-    // ayVec4 spriteColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
-    // ayVec4 spriteColor = ay_extract_sprite_texture(spriteTexture, *ptUV, 4, 0, 32, 32, 32);
-
-    // textures
-    // return (ayVec4){spriteColor.r * 255, spriteColor.g * 255, spriteColor.b * 255, spriteColor.a * 255};
+    // ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
+    // ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
 
     // vertex colors
     return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, ptColor->a * 255};
 }
 
-ayVec2
-ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut) 
+ayVec2 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut) 
 {
-    
     ayVertexLayout vertLayout = tBuiltIns.tLayout;
     const char* pcVertexDataIn = pVertexDataIn;
 
-    // get vertex attributes (inputs)
-    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 0); 
-    ayVec2 tUV = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 1); 
+    // Get vertex attributes
+    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 0); 
+    ayVec2 tUV = *(ayVec2*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 1); 
     ayVec4 tColor = *(ayVec4*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 2);
 
-    // set varyings (outputs)
-    ayVec4* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC4, ptVaryingDataOut);  // color
+    // Set varyings
+    ayVec4* ptColor = ay_set_varying(AY_VARYING_TYPE_VEC4, ptVaryingDataOut);
     *ptColor = tColor;
 
-    ayVec2* ptUV = ay_set_varying(AY_VARYING_TYPE_VEC2, ptVaryingDataOut);  // uv
+    ayVec2* ptUV = ay_set_varying(AY_VARYING_TYPE_VEC2, ptVaryingDataOut);
     *ptUV = tUV;
 
-    // TODO: fix this
-    // float transU = ptUV->u;
-    // float transV = ptUV->v;
-    // *ptUV = applyIsometricToUV(transU, transV);
-
-    // ayVec2 transCoords = transdormGridtoIsometric(tPos.x, tPos.y);
-
+    // Transform position
     return tPos;
 }
 
@@ -86,9 +73,9 @@ int main()
     int iTextureWidth = 0;
     int iTextureHeight = 0;
     ayTexture testTexture = {
-        .pucData = ay_load_png("../../assets/separate_images/tile_025.png", &iTextureWidth, &iTextureHeight),
-        .iWidth  = 32,
-        .iHeight = 32
+        .pucData = ay_load_png("../../assets/terrainSingle.png", &iTextureWidth, &iTextureHeight),
+        .iWidth  = 256,
+        .iHeight = 128
     };
 
     // code timing start 
@@ -96,8 +83,9 @@ int main()
     double cpu_time_used;
     start = clock();
 
-    const int iCols = 5;
-    const int iRows = 5;
+
+    const int iCols = 30;
+    const int iRows = 30;
     
     // Calculate required buffer sizes
     const int iVertexCount = iCols * iRows * 4; // 4 vertices per quad
@@ -107,7 +95,6 @@ int main()
     uint32_t* atIndexBuffer = malloc(iIndexCount * sizeof(uint32_t));
     
     ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, false);
-
 
     ayPipeline tPipeline0 = {
         .tPixelShader = ayPixelShader_1,
@@ -134,7 +121,7 @@ int main()
     ay_bind_index_buffer(ptData, atIndexBuffer);
     ay_bind_texture(ptData, 1, &testTexture);
 
-    // draw texture
+    // draw 
     ay_bind_pipeline(ptData, &tPipeline0);
     ay_draw_indexed(ptData, 0, iIndexCount);  
 
@@ -153,20 +140,20 @@ int main()
 
 
 
-void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indices, bool addRandomColor, bool DEBUG) 
+void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* indexBuffer, bool bAddRandomColor, bool bDEBUG) 
 {
-    const float fQuadWidth = 2.0f / cols;
-    const float fQuadHeight = 2.0f / rows;
+    const float fQuadWidth = 2.0f / iCols;
+    const float fQuadHeight = 2.0f / iRows;
     
     // Seed the random number generator if we're using random colors
-    if (addRandomColor) {
+    if (bAddRandomColor) {
         srand((unsigned int)time(NULL));
     }
     
-    for (int y = 0; y < rows; y++) {
-        for (int x = 0; x < cols; x++) {
-            int QuadIdx = y * cols + x;
-            int BaseVtx = QuadIdx * 32; // 4 vertices × 8 components
+    for (int y = 0; y < iRows; y++) {
+        for (int x = 0; x < iCols; x++) {
+            int iQuadIndex = y * iCols + x;
+            int iStartingVertexindex = iQuadIndex * 32; // 4 vertices × 8 components
             
             float left = -1.0f + x * fQuadWidth;
             float right = left + fQuadWidth;
@@ -175,98 +162,100 @@ void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indice
             
             // Generate random colors if enabled
             float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
-            if (addRandomColor) {
+            if (bAddRandomColor) {
                 r = (float)rand() / (float)RAND_MAX;
                 g = (float)rand() / (float)RAND_MAX;
                 b = (float)rand() / (float)RAND_MAX;
                 a = 1.0f; // alpha does not change
             }
             
-            // Top-left (x, y, u, v, r, g, b, a)
-            vertices[BaseVtx + 0] = left;
-            vertices[BaseVtx + 1] = top;
-            vertices[BaseVtx + 2] = 0.0f;
-            vertices[BaseVtx + 3] = 0.0f;
-            vertices[BaseVtx + 4] = r;
-            vertices[BaseVtx + 5] = g;
-            vertices[BaseVtx + 6] = b;
-            vertices[BaseVtx + 7] = a;
+            // Top left (x, y, u, v, r, g, b, a)
+            vertexBuffer[iStartingVertexindex + 0] = left;
+            vertexBuffer[iStartingVertexindex + 1] = top;
+            vertexBuffer[iStartingVertexindex + 2] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 3] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 4] = r;
+            vertexBuffer[iStartingVertexindex + 5] = g;
+            vertexBuffer[iStartingVertexindex + 6] = b;
+            vertexBuffer[iStartingVertexindex + 7] = a;
             
-            // Top-right
-            vertices[BaseVtx + 8] = right;
-            vertices[BaseVtx + 9] = top;
-            vertices[BaseVtx + 10] = 1.0f;
-            vertices[BaseVtx + 11] = 0.0f;
-            vertices[BaseVtx + 12] = r;
-            vertices[BaseVtx + 13] = g;
-            vertices[BaseVtx + 14] = b;
-            vertices[BaseVtx + 15] = a;
+            // Top right
+            vertexBuffer[iStartingVertexindex + 8] = right;
+            vertexBuffer[iStartingVertexindex + 9] = top;
+            vertexBuffer[iStartingVertexindex + 10] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 11] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 12] = r;
+            vertexBuffer[iStartingVertexindex + 13] = g;
+            vertexBuffer[iStartingVertexindex + 14] = b;
+            vertexBuffer[iStartingVertexindex + 15] = a;
             
-            // Bottom-left
-            vertices[BaseVtx + 16] = left;
-            vertices[BaseVtx + 17] = bottom;
-            vertices[BaseVtx + 18] = 0.0f;
-            vertices[BaseVtx + 19] = 1.0f;
-            vertices[BaseVtx + 20] = r;
-            vertices[BaseVtx + 21] = g;
-            vertices[BaseVtx + 22] = b;
-            vertices[BaseVtx + 23] = a;
+            // Bottom left
+            vertexBuffer[iStartingVertexindex + 16] = left;
+            vertexBuffer[iStartingVertexindex + 17] = bottom;
+            vertexBuffer[iStartingVertexindex + 18] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 19] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 20] = r;
+            vertexBuffer[iStartingVertexindex + 21] = g;
+            vertexBuffer[iStartingVertexindex + 22] = b;
+            vertexBuffer[iStartingVertexindex + 23] = a;
             
-            // Bottom-right
-            vertices[BaseVtx + 24] = right;
-            vertices[BaseVtx + 25] = bottom;
-            vertices[BaseVtx + 26] = 1.0f;
-            vertices[BaseVtx + 27] = 1.0f;
-            vertices[BaseVtx + 28] = r;
-            vertices[BaseVtx + 29] = g;
-            vertices[BaseVtx + 30] = b;
-            vertices[BaseVtx + 31] = a;
+            // Bottom right
+            vertexBuffer[iStartingVertexindex + 24] = right;
+            vertexBuffer[iStartingVertexindex + 25] = bottom;
+            vertexBuffer[iStartingVertexindex + 26] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 27] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 28] = r;
+            vertexBuffer[iStartingVertexindex + 29] = g;
+            vertexBuffer[iStartingVertexindex + 30] = b;
+            vertexBuffer[iStartingVertexindex + 31] = a;
             
-            if(DEBUG)
+            if(bDEBUG)
             {
                 // Debug print for each quad
-                printf("Quad %d (Col %d, Row %d):\n", QuadIdx, x, y);
+                printf("Quad %d (Col %d, Row %d):\n", iQuadIndex, x, y);
                 printf("  TL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[BaseVtx], vertices[BaseVtx+1],
-                       vertices[BaseVtx+2], vertices[BaseVtx+3],
-                       vertices[BaseVtx+4], vertices[BaseVtx+5],
-                       vertices[BaseVtx+6], vertices[BaseVtx+7]);
+                       vertexBuffer[iStartingVertexindex],     vertexBuffer[iStartingVertexindex + 1],
+                       vertexBuffer[iStartingVertexindex + 2], vertexBuffer[iStartingVertexindex + 3],
+                       vertexBuffer[iStartingVertexindex + 4], vertexBuffer[iStartingVertexindex + 5],
+                       vertexBuffer[iStartingVertexindex + 6], vertexBuffer[iStartingVertexindex + 7]);
                 printf("  TR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[BaseVtx+8], vertices[BaseVtx+9],
-                       vertices[BaseVtx+10], vertices[BaseVtx+11],
-                       vertices[BaseVtx+12], vertices[BaseVtx+13],
-                       vertices[BaseVtx+14], vertices[BaseVtx+15]);
+                       vertexBuffer[iStartingVertexindex + 8],  vertexBuffer[iStartingVertexindex + 9],
+                       vertexBuffer[iStartingVertexindex + 10], vertexBuffer[iStartingVertexindex + 11],
+                       vertexBuffer[iStartingVertexindex + 12], vertexBuffer[iStartingVertexindex + 13],
+                       vertexBuffer[iStartingVertexindex + 14], vertexBuffer[iStartingVertexindex + 15]);
                 printf("  BL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertices[BaseVtx+16], vertices[BaseVtx+17],
-                       vertices[BaseVtx+18], vertices[BaseVtx+19],
-                       vertices[BaseVtx+20], vertices[BaseVtx+21],
-                       vertices[BaseVtx+22], vertices[BaseVtx+23]);
+                       vertexBuffer[iStartingVertexindex + 16], vertexBuffer[iStartingVertexindex + 17],
+                       vertexBuffer[iStartingVertexindex + 18], vertexBuffer[iStartingVertexindex + 19],
+                       vertexBuffer[iStartingVertexindex + 20], vertexBuffer[iStartingVertexindex + 21],
+                       vertexBuffer[iStartingVertexindex + 22], vertexBuffer[iStartingVertexindex + 23]);
                 printf("  BR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n\n", 
-                       vertices[BaseVtx+24], vertices[BaseVtx+25],
-                       vertices[BaseVtx+26], vertices[BaseVtx+27],
-                       vertices[BaseVtx+28], vertices[BaseVtx+29],
-                       vertices[BaseVtx+30], vertices[BaseVtx+31]);
+                       vertexBuffer[iStartingVertexindex + 24], vertexBuffer[iStartingVertexindex + 25],
+                       vertexBuffer[iStartingVertexindex + 26], vertexBuffer[iStartingVertexindex + 27],
+                       vertexBuffer[iStartingVertexindex + 28], vertexBuffer[iStartingVertexindex + 29],
+                       vertexBuffer[iStartingVertexindex + 30], vertexBuffer[iStartingVertexindex + 31]);
             }
         }
     }
     
     // Generate indices for index buffer
-    for (int i = 0; i < cols * rows; i++) {
-        int ibaseIdx = i * 4;
-        int iBaseInd = i * 6;
+    for (int i = 0; i < iCols * iRows; i++) {
+        int iCurrentQuad = i * 4;
+        int iTriangleStartIndex = i * 6;
         
-        indices[iBaseInd + 0] = ibaseIdx + 0;
-        indices[iBaseInd + 1] = ibaseIdx + 1;
-        indices[iBaseInd + 2] = ibaseIdx + 2;
+        // first traingle
+        indexBuffer[iTriangleStartIndex + 0] = iCurrentQuad + 0;
+        indexBuffer[iTriangleStartIndex + 1] = iCurrentQuad + 1;
+        indexBuffer[iTriangleStartIndex + 2] = iCurrentQuad + 2;
         
-        indices[iBaseInd + 3] = ibaseIdx + 1;
-        indices[iBaseInd + 4] = ibaseIdx + 3;
-        indices[iBaseInd + 5] = ibaseIdx + 2;
+        // second triangle
+        indexBuffer[iTriangleStartIndex + 3] = iCurrentQuad + 1;
+        indexBuffer[iTriangleStartIndex + 4] = iCurrentQuad + 3;
+        indexBuffer[iTriangleStartIndex + 5] = iCurrentQuad + 2;
     }
 }
 
 
-ayVec2 transdormGridtoIsometric(float x, float y) 
+ayVec2 transform_grid_to_isometric_view(float x, float y) 
 {
     ayVec2 result;
     result.x = x - y;
@@ -274,10 +263,3 @@ ayVec2 transdormGridtoIsometric(float x, float y)
     return result;
 }
 
-ayVec2 applyIsometricToUV(float u, float v) 
-{
-    ayVec2 result;
-    result.u = u - v;         
-    result.v = (u + v) / 2;   
-    return result;
-}
