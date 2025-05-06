@@ -2,7 +2,6 @@
 #include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
 
 
 // TODO:
@@ -25,7 +24,6 @@
 
 ayVec2 transform_grid_to_isometric_view(float x, float y);
 
-void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indices, bool addRandomColor, bool DEBUG);
 
 // for texture 
 ayVec4
@@ -35,11 +33,11 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
     const ayVec4* ptColor = ay_get_varying(0, ptVaryingDataIn);
     const ayVec2* ptUV = ay_get_varying(1, ptVaryingDataIn);
 
-    // ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
-    // ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
+    ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
+    ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
 
     // vertex colors
-    return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, ptColor->a * 255};
+    return (ayVec4){spriteColor.r * 255, spriteColor.g * 255, spriteColor.b * 255, spriteColor.a * 255};
 }
 
 ayVec2 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut) 
@@ -59,8 +57,10 @@ ayVec2 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDat
     ayVec2* ptUV = ay_set_varying(AY_VARYING_TYPE_VEC2, ptVaryingDataOut);
     *ptUV = tUV;
 
+    ayVec2 transCoords = transform_grid_to_isometric_view(tPos.x, tPos.y);
+
     // Transform position
-    return tPos;
+    return transCoords;
 }
 
 int main()
@@ -83,9 +83,8 @@ int main()
     double cpu_time_used;
     start = clock();
 
-
-    const int iCols = 30;
-    const int iRows = 30;
+    const int iCols = 4;
+    const int iRows = 4;
     
     // Calculate required buffer sizes
     const int iVertexCount = iCols * iRows * 4; // 4 vertices per quad
@@ -140,119 +139,7 @@ int main()
 
 
 
-void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* indexBuffer, bool bAddRandomColor, bool bDEBUG) 
-{
-    const float fQuadWidth = 2.0f / iCols;
-    const float fQuadHeight = 2.0f / iRows;
-    
-    // Seed the random number generator if we're using random colors
-    if (bAddRandomColor) {
-        srand((unsigned int)time(NULL));
-    }
-    
-    for (int y = 0; y < iRows; y++) {
-        for (int x = 0; x < iCols; x++) {
-            int iQuadIndex = y * iCols + x;
-            int iStartingVertexindex = iQuadIndex * 32; // 4 vertices × 8 components
-            
-            float left = -1.0f + x * fQuadWidth;
-            float right = left + fQuadWidth;
-            float top = -1.0f + y * fQuadHeight;
-            float bottom = top + fQuadHeight;
-            
-            // Generate random colors if enabled
-            float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
-            if (bAddRandomColor) {
-                r = (float)rand() / (float)RAND_MAX;
-                g = (float)rand() / (float)RAND_MAX;
-                b = (float)rand() / (float)RAND_MAX;
-                a = 1.0f; // alpha does not change
-            }
-            
-            // Top left (x, y, u, v, r, g, b, a)
-            vertexBuffer[iStartingVertexindex + 0] = left;
-            vertexBuffer[iStartingVertexindex + 1] = top;
-            vertexBuffer[iStartingVertexindex + 2] = 0.0f;
-            vertexBuffer[iStartingVertexindex + 3] = 0.0f;
-            vertexBuffer[iStartingVertexindex + 4] = r;
-            vertexBuffer[iStartingVertexindex + 5] = g;
-            vertexBuffer[iStartingVertexindex + 6] = b;
-            vertexBuffer[iStartingVertexindex + 7] = a;
-            
-            // Top right
-            vertexBuffer[iStartingVertexindex + 8] = right;
-            vertexBuffer[iStartingVertexindex + 9] = top;
-            vertexBuffer[iStartingVertexindex + 10] = 1.0f;
-            vertexBuffer[iStartingVertexindex + 11] = 0.0f;
-            vertexBuffer[iStartingVertexindex + 12] = r;
-            vertexBuffer[iStartingVertexindex + 13] = g;
-            vertexBuffer[iStartingVertexindex + 14] = b;
-            vertexBuffer[iStartingVertexindex + 15] = a;
-            
-            // Bottom left
-            vertexBuffer[iStartingVertexindex + 16] = left;
-            vertexBuffer[iStartingVertexindex + 17] = bottom;
-            vertexBuffer[iStartingVertexindex + 18] = 0.0f;
-            vertexBuffer[iStartingVertexindex + 19] = 1.0f;
-            vertexBuffer[iStartingVertexindex + 20] = r;
-            vertexBuffer[iStartingVertexindex + 21] = g;
-            vertexBuffer[iStartingVertexindex + 22] = b;
-            vertexBuffer[iStartingVertexindex + 23] = a;
-            
-            // Bottom right
-            vertexBuffer[iStartingVertexindex + 24] = right;
-            vertexBuffer[iStartingVertexindex + 25] = bottom;
-            vertexBuffer[iStartingVertexindex + 26] = 1.0f;
-            vertexBuffer[iStartingVertexindex + 27] = 1.0f;
-            vertexBuffer[iStartingVertexindex + 28] = r;
-            vertexBuffer[iStartingVertexindex + 29] = g;
-            vertexBuffer[iStartingVertexindex + 30] = b;
-            vertexBuffer[iStartingVertexindex + 31] = a;
-            
-            if(bDEBUG)
-            {
-                // Debug print for each quad
-                printf("Quad %d (Col %d, Row %d):\n", iQuadIndex, x, y);
-                printf("  TL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex],     vertexBuffer[iStartingVertexindex + 1],
-                       vertexBuffer[iStartingVertexindex + 2], vertexBuffer[iStartingVertexindex + 3],
-                       vertexBuffer[iStartingVertexindex + 4], vertexBuffer[iStartingVertexindex + 5],
-                       vertexBuffer[iStartingVertexindex + 6], vertexBuffer[iStartingVertexindex + 7]);
-                printf("  TR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex + 8],  vertexBuffer[iStartingVertexindex + 9],
-                       vertexBuffer[iStartingVertexindex + 10], vertexBuffer[iStartingVertexindex + 11],
-                       vertexBuffer[iStartingVertexindex + 12], vertexBuffer[iStartingVertexindex + 13],
-                       vertexBuffer[iStartingVertexindex + 14], vertexBuffer[iStartingVertexindex + 15]);
-                printf("  BL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex + 16], vertexBuffer[iStartingVertexindex + 17],
-                       vertexBuffer[iStartingVertexindex + 18], vertexBuffer[iStartingVertexindex + 19],
-                       vertexBuffer[iStartingVertexindex + 20], vertexBuffer[iStartingVertexindex + 21],
-                       vertexBuffer[iStartingVertexindex + 22], vertexBuffer[iStartingVertexindex + 23]);
-                printf("  BR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n\n", 
-                       vertexBuffer[iStartingVertexindex + 24], vertexBuffer[iStartingVertexindex + 25],
-                       vertexBuffer[iStartingVertexindex + 26], vertexBuffer[iStartingVertexindex + 27],
-                       vertexBuffer[iStartingVertexindex + 28], vertexBuffer[iStartingVertexindex + 29],
-                       vertexBuffer[iStartingVertexindex + 30], vertexBuffer[iStartingVertexindex + 31]);
-            }
-        }
-    }
-    
-    // Generate indices for index buffer
-    for (int i = 0; i < iCols * iRows; i++) {
-        int iCurrentQuad = i * 4;
-        int iTriangleStartIndex = i * 6;
-        
-        // first traingle
-        indexBuffer[iTriangleStartIndex + 0] = iCurrentQuad + 0;
-        indexBuffer[iTriangleStartIndex + 1] = iCurrentQuad + 1;
-        indexBuffer[iTriangleStartIndex + 2] = iCurrentQuad + 2;
-        
-        // second triangle
-        indexBuffer[iTriangleStartIndex + 3] = iCurrentQuad + 1;
-        indexBuffer[iTriangleStartIndex + 4] = iCurrentQuad + 3;
-        indexBuffer[iTriangleStartIndex + 5] = iCurrentQuad + 2;
-    }
-}
+
 
 
 ayVec2 transform_grid_to_isometric_view(float x, float y) 

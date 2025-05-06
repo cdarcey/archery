@@ -23,6 +23,7 @@ Index of this file:
 
 #include <stdint.h> // uint*_t
 #include <stddef.h> // size_t
+#include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
 // [SECTION] structs
@@ -204,6 +205,9 @@ void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
 void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
 void ay_bind_buffer       (ayGraphicsData*, int bufferIndex, const void*);
 void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture);
+
+// buffer helper
+void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indices, bool addRandomColor, bool DEBUG);
 
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
