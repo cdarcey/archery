@@ -218,6 +218,8 @@ void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount
 // clock wise vertacies
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount); 
 
+void ay__draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount, uint32_t uIndex);
+
 //----------------------------shader helpers-----------------------------------
 
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
