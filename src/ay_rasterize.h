@@ -31,6 +31,13 @@ Index of this file:
 
 typedef struct _ayGraphicsData ayGraphicsData;    // opaque
 
+typedef struct _ayVertexBuffer
+{
+    float* buffer;
+    int    iCapacity;
+    int    iSize;
+} ayVertexBuffer;
+
 typedef struct _ayFrameBufferData
 {
     uint32_t       uWidth;

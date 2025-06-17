@@ -326,9 +326,8 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
 }
 
 void    
-ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount) /**  clock wise vertacies required */
+ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
-    /**  clock wise vertacies required */
     // calculate frame buffer size
     const int fbWidth = ptData->ptFrameBufferData->uWidth;
     const int fbHeight = ptData->ptFrameBufferData->uHeight;

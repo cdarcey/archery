@@ -18,8 +18,8 @@
 
 
 
-#define screenWidth  1080
-#define screenHeight 1080
+#define screenWidth  500
+#define screenHeight 500
 
 
 ayVec2 transform_grid_to_isometric_view(float x, float y);
@@ -37,7 +37,7 @@ ayPixelShader_1(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const 
     ayVec4 spriteColor = ay_sample_texture(spriteTexture, *ptUV, 4); 
 
     // vertex colors
-    return (ayVec4){spriteColor.r * 255, spriteColor.g * 255, spriteColor.b * 255, spriteColor.a * 255};
+    return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, ptColor->a * 255};
 }
 
 ayVec2 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut) 
@@ -60,7 +60,7 @@ ayVec2 ayVertexShader_0(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDat
     ayVec2 transCoords = transform_grid_to_isometric_view(tPos.x, tPos.y);
 
     // Transform position
-    return transCoords;
+    return *ptUV;
 }
 
 int main()
@@ -93,7 +93,7 @@ int main()
     float* atVertexBuffer = malloc(iVertexCount * 8 * sizeof(float)); // x,y,u,v
     uint32_t* atIndexBuffer = malloc(iIndexCount * sizeof(uint32_t));
     
-    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, false);
+    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, true);
 
     ayPipeline tPipeline0 = {
         .tPixelShader = ayPixelShader_1,
