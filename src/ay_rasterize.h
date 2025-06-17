@@ -33,10 +33,17 @@ typedef struct _ayGraphicsData ayGraphicsData;    // opaque
 
 typedef struct _ayVertexBuffer
 {
-    float* buffer;
+    float* fBuffer;
     int    iCapacity;
     int    iSize;
 } ayVertexBuffer;
+
+typedef struct _ayIndexBuffer
+{
+    uint32_t* uBuffer;
+    int    iCapacity;
+    int    iSize;
+} ayIndexBuffer;
 
 typedef struct _ayFrameBufferData
 {
