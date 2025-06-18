@@ -39,12 +39,6 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             float top = rowPositions[y];
             float bottom = rowPositions[y + 1];
 
-            // Calculate normalized UV coordinates
-            float u0 = (float)x / iCols;
-            float u1 = (float)(x + 1) / iCols;
-            float v0 = (float)y / iRows;
-            float v1 = (float)(y + 1) / iRows;
-
             // Generate random colors if enabled
             float r = 1.0f, g = 1.0f, b = 1.0f, a = 1.0f;
             if (bAddRandomColor) {
@@ -56,8 +50,8 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             // Top left (x, y, u, v, r, g, b, a)
             vertexBuffer[iStartingVertexindex + 0] = left;
             vertexBuffer[iStartingVertexindex + 1] = top;
-            vertexBuffer[iStartingVertexindex + 2] = u0;
-            vertexBuffer[iStartingVertexindex + 3] = v0;
+            vertexBuffer[iStartingVertexindex + 2] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 3] = 1.0f;
             vertexBuffer[iStartingVertexindex + 4] = r;
             vertexBuffer[iStartingVertexindex + 5] = g;
             vertexBuffer[iStartingVertexindex + 6] = b;
@@ -66,8 +60,8 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             // Top right
             vertexBuffer[iStartingVertexindex + 8] = right;
             vertexBuffer[iStartingVertexindex + 9] = top;
-            vertexBuffer[iStartingVertexindex + 10] = u1;
-            vertexBuffer[iStartingVertexindex + 11] = v0;
+            vertexBuffer[iStartingVertexindex + 10] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 11] = 1.0f;
             vertexBuffer[iStartingVertexindex + 12] = r;
             vertexBuffer[iStartingVertexindex + 13] = g;
             vertexBuffer[iStartingVertexindex + 14] = b;
@@ -76,8 +70,8 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             // Bottom left
             vertexBuffer[iStartingVertexindex + 16] = left;
             vertexBuffer[iStartingVertexindex + 17] = bottom;
-            vertexBuffer[iStartingVertexindex + 18] = u0;
-            vertexBuffer[iStartingVertexindex + 19] = v1;
+            vertexBuffer[iStartingVertexindex + 18] = 0.0f;
+            vertexBuffer[iStartingVertexindex + 19] = 0.0f;
             vertexBuffer[iStartingVertexindex + 20] = r;
             vertexBuffer[iStartingVertexindex + 21] = g;
             vertexBuffer[iStartingVertexindex + 22] = b;
@@ -86,8 +80,8 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             // Bottom right
             vertexBuffer[iStartingVertexindex + 24] = right;
             vertexBuffer[iStartingVertexindex + 25] = bottom;
-            vertexBuffer[iStartingVertexindex + 26] = u1;
-            vertexBuffer[iStartingVertexindex + 27] = v1;
+            vertexBuffer[iStartingVertexindex + 26] = 1.0f;
+            vertexBuffer[iStartingVertexindex + 27] = 0.0f;
             vertexBuffer[iStartingVertexindex + 28] = r;
             vertexBuffer[iStartingVertexindex + 29] = g;
             vertexBuffer[iStartingVertexindex + 30] = b;
