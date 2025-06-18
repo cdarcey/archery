@@ -31,20 +31,6 @@ Index of this file:
 
 typedef struct _ayGraphicsData ayGraphicsData;    // opaque
 
-typedef struct _ayVertexBuffer
-{
-    float* fBuffer;
-    int    iCapacity;
-    int    iSize;
-} ayVertexBuffer;
-
-typedef struct _ayIndexBuffer
-{
-    uint32_t* uBuffer;
-    int    iCapacity;
-    int    iSize;
-} ayIndexBuffer;
-
 typedef struct _ayFrameBufferData
 {
     uint32_t       uWidth;
@@ -66,6 +52,7 @@ typedef enum _ayVaryingType
     AY_VARYING_TYPE_VEC3,
     AY_VARYING_TYPE_VEC4,
     AY_VARYING_TYPE_FLOAT,
+    AY_MAX_VARYINGS
 } ayVaryingType;
 
 typedef enum _ayVertexAttributeType
@@ -220,9 +207,6 @@ void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
 void ay_bind_buffer       (ayGraphicsData*, int bufferIndex, const void*);
 void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture);
 
-// buffer helper
-void ay_generate_quad_grid(int cols, int rows, float* vertices, uint32_t* indices, bool addRandomColor, bool DEBUG);
-
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
@@ -232,13 +216,10 @@ void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount
 // clock wise vertacies
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount); 
 
-void ay__draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount, uint32_t uIndex);
-
 //----------------------------shader helpers-----------------------------------
 
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
-
 const void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation);
 
 #endif
