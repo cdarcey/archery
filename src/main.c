@@ -22,11 +22,15 @@ ayVec4
 ayPixelShader_Textures(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn)
 {
     const ayVec2* ptUV = ay_get_varying(0, ptVaryingDataIn);
-
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
-    ayVec4 tColor = ay_sample_texture_bilinear(spriteTexture, *ptUV, 4);
 
+
+    ayVec4 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
     return tColor;
+
+    // testing this function
+    // ayVec4 tColorExtractedTexture = ay_extract_sprite_texture(spriteTexture, *ptUV, 4, 50, 50, 50, 50); 
+    // return tColorExtractedTexture;
 }
 
 ayVec2
@@ -86,8 +90,8 @@ int main()
         .iHeight = iTextureHeight
     };
 
-    const int iCols = 13;
-    const int iRows = 13;
+    const int iCols = 1;
+    const int iRows = 1;
     
     // Calculate required buffer sizes
     const int iVertexCount = iCols * iRows * 4; // 4 vertices per quad
@@ -96,7 +100,7 @@ int main()
     float* atVertexBuffer = malloc(iVertexCount * 8 * sizeof(float)); // x,y,u,v
     uint32_t* atIndexBuffer = malloc(iIndexCount * sizeof(uint32_t));
     
-    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, true);
+    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, false);
 
     ayPipeline tPipelineTextures = {
         .tPixelShader = ayPixelShader_Textures,
@@ -143,7 +147,7 @@ int main()
     ay_bind_texture(ptData, 1, &testTexture);
 
     // draw 
-    ay_bind_pipeline(ptData, &tPipelineColors);
+    ay_bind_pipeline(ptData, &tPipelineTextures);
     ay_draw_indexed(ptData, 0, iIndexCount);  
 
     // output frame

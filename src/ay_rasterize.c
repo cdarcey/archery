@@ -620,7 +620,7 @@ ayVec4
 ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to pixel coords
-    int iPixelX = (int)((1.0f - tUV.x) * (tTexture.iWidth - 1));
+    int iPixelX = (int)((tUV.x) * (tTexture.iWidth - 1));
     int iPixelY = (int)((1.0f - tUV.y) * (tTexture.iHeight - 1));
     // clamp to texture bounds 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
