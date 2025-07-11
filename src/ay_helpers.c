@@ -2,6 +2,102 @@
 #include <stdlib.h> // Required for RAND_MAX
 #include <stdio.h> // printf
 
+ayVertexBuffer
+ayNewVertexBuffer(int iCapacity)
+{
+    // TODO: should this have minimum of 1 quad to avoid automitc increase of buffer on first use
+    if(iCapacity <= 0) // make sure input is usable number
+    {
+        // TODO: handle error here
+       return (ayVertexBuffer){0};
+    }
+   
+    // TODO: fix the double malloc
+    // allocate memory for vertex buffer
+    ayVertexBuffer newBuffer = {
+        .fBuffer = malloc(sizeof(float) * iCapacity),
+        .iCapacity = iCapacity,
+        .iSize = 0
+    };
+   
+    // check for successful allocation
+    if(newBuffer.fBuffer == NULL)
+    {
+        printf("Allocation failed\n");
+        return newBuffer;
+    }
+    else return newBuffer;
+}
+
+ayIndexBuffer
+ayNewIndexBuffer(int iCapacity)
+{
+    // TODO: should this have minimum of 1 quad to avoid automitc increase of buffer on first use
+    if(iCapacity <= 0) // make sure input is usable number
+    {
+        printf("Invalid input\n");
+       return (ayIndexBuffer){0};
+    }
+
+    if(iCapacity < 6)
+    {
+        iCapacity = 6;
+    }
+   
+    // allocate memory for vertex buffer
+    ayIndexBuffer newBuffer = {
+        .uBuffer = malloc(sizeof(float) * iCapacity),
+        .iCapacity = iCapacity,
+        .iSize = 0
+    };
+   
+    // check for successful allocation
+    if(newBuffer.uBuffer == NULL)
+    {
+        printf("Invalid input\n");
+        return newBuffer;
+    }
+    else return newBuffer;
+}
+
+ayVertexBuffer
+ayIncreaseVertexBufferCapacity(ayVertexBuffer* vertBuffer)
+{
+    // calculate new capacity
+    int newCapacity = vertBuffer->iCapacity * 2;
+   
+    // create new buffer with larger capacity
+    ayVertexBuffer tmpVertBuffer = ayNewVertexBuffer(newCapacity);
+    memset(tmpVertBuffer.fBuffer, 0, sizeof(float) * newCapacity);
+   
+    // copy data from old buffer to new larger buffer
+    memcpy(tmpVertBuffer.fBuffer, vertBuffer->fBuffer, sizeof(float) * vertBuffer->iSize);
+    tmpVertBuffer.iSize = vertBuffer->iSize;
+
+    // free old buffer
+    free(vertBuffer->fBuffer);
+    return tmpVertBuffer;
+}
+
+ayIndexBuffer
+ayIncreaseIndexBufferCapacity(ayIndexBuffer* indexBuffer)
+{
+    // calculate new capacity
+    int newCapacity = indexBuffer->iCapacity * 2;
+   
+    // create new buffer with larger capacity
+    ayIndexBuffer tmpIndexBuffer = ayNewIndexBuffer(newCapacity);
+    memset(tmpIndexBuffer.uBuffer, 0, sizeof(float) * newCapacity);
+   
+    // copy data from old buffer to new larger buffer
+    memcpy(tmpIndexBuffer.uBuffer, indexBuffer->uBuffer, sizeof(float) * indexBuffer->iSize);
+    tmpIndexBuffer.iSize = indexBuffer->iSize;
+
+    // free old buffer
+    free(indexBuffer->uBuffer);
+    return tmpIndexBuffer;
+}
+
 ayVec2 transform_grid_to_isometric_view(float x, float y) 
 {
     ayVec2 result;
@@ -10,7 +106,7 @@ ayVec2 transform_grid_to_isometric_view(float x, float y)
     return result;
 }
 
-void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* indexBuffer, bool bAddRandomColor, bool bDEBUG) 
+void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* indexBuffer, bool bAddRandomColor) 
 {
     // Pre-calculate all column positions (x coordinates)
     float* columnPositions = (float*)malloc((iCols + 1) * sizeof(float));
@@ -86,32 +182,6 @@ void ay_generate_quad_grid(int iCols, int iRows, float* vertexBuffer, uint32_t* 
             vertexBuffer[iStartingVertexindex + 29] = g;
             vertexBuffer[iStartingVertexindex + 30] = b;
             vertexBuffer[iStartingVertexindex + 31] = a;
-            
-            if(bDEBUG)
-            {
-                // Debug print for each quad
-                printf("Quad %d (Col %d, Row %d):\n", iQuadIndex, x, y);
-                printf("  TL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex],     vertexBuffer[iStartingVertexindex + 1],
-                       vertexBuffer[iStartingVertexindex + 2], vertexBuffer[iStartingVertexindex + 3],
-                       vertexBuffer[iStartingVertexindex + 4], vertexBuffer[iStartingVertexindex + 5],
-                       vertexBuffer[iStartingVertexindex + 6], vertexBuffer[iStartingVertexindex + 7]);
-                printf("  TR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex + 8],  vertexBuffer[iStartingVertexindex + 9],
-                       vertexBuffer[iStartingVertexindex + 10], vertexBuffer[iStartingVertexindex + 11],
-                       vertexBuffer[iStartingVertexindex + 12], vertexBuffer[iStartingVertexindex + 13],
-                       vertexBuffer[iStartingVertexindex + 14], vertexBuffer[iStartingVertexindex + 15]);
-                printf("  BL: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n", 
-                       vertexBuffer[iStartingVertexindex + 16], vertexBuffer[iStartingVertexindex + 17],
-                       vertexBuffer[iStartingVertexindex + 18], vertexBuffer[iStartingVertexindex + 19],
-                       vertexBuffer[iStartingVertexindex + 20], vertexBuffer[iStartingVertexindex + 21],
-                       vertexBuffer[iStartingVertexindex + 22], vertexBuffer[iStartingVertexindex + 23]);
-                printf("  BR: (%.2f, %.2f) UV(%.2f, %.2f) RGBA(%.2f, %.2f, %.2f, %.2f)\n\n", 
-                       vertexBuffer[iStartingVertexindex + 24], vertexBuffer[iStartingVertexindex + 25],
-                       vertexBuffer[iStartingVertexindex + 26], vertexBuffer[iStartingVertexindex + 27],
-                       vertexBuffer[iStartingVertexindex + 28], vertexBuffer[iStartingVertexindex + 29],
-                       vertexBuffer[iStartingVertexindex + 30], vertexBuffer[iStartingVertexindex + 31]);
-            }
         }
     }
     

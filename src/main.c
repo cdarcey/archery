@@ -100,7 +100,7 @@ int main()
     float* atVertexBuffer = malloc(iVertexCount * 8 * sizeof(float)); // x,y,u,v
     uint32_t* atIndexBuffer = malloc(iIndexCount * sizeof(uint32_t));
     
-    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true, false);
+    ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true);
 
     ayPipeline tPipelineTextures = {
         .tPixelShader = ayPixelShader_Textures,
