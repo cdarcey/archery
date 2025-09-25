@@ -79,6 +79,7 @@ initialize_graphics(void)
 {
     ayGraphicsData* ptData = malloc(sizeof(ayGraphicsData));
     memset(ptData, 0, sizeof(ayGraphicsData));
+
     return ptData;
 }
 
@@ -325,17 +326,17 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount)
     }
 }
 
-void    
+void
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
     // calculate frame buffer size
-    const int fbWidth = ptData->ptFrameBufferData->uWidth;
-    const int fbHeight = ptData->ptFrameBufferData->uHeight;
-    
+    const uint32_t fbWidth = ptData->ptFrameBufferData->uWidth;
+    const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
+
     ayVec2 vertexP = {
         .x = 0,
         .y = 0
-    };  
+    };
 
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
@@ -389,10 +390,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         // Bounding box with clamping
-        const int minX = ay_max(0, ay_min3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) - 1);
-        const int minY = ay_max(0, ay_min3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) - 1);
-        const int maxX = ay_min(fbWidth-1, ay_max3((int)tVertex0.x, (int)tVertex1.x, (int)tVertex2.x) + 1);
-        const int maxY = ay_min(fbHeight-1, ay_max3((int)tVertex0.y, (int)tVertex1.y, (int)tVertex2.y) + 1);
+        const uint32_t minX = ay_max(0, ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) - 1);
+        const uint32_t minY = ay_max(0, ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) - 1);
+        const uint32_t maxX = ay_min(fbWidth-1, ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) + 1);
+        const uint32_t maxY = ay_min(fbHeight-1, ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) + 1);
 
         // Precompute edge function deltas
         const float ABa = tVertex0.y - tVertex1.y;
@@ -419,7 +420,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
             float rowABP = ABP;
             float rowBCP = BCP;
             float rowCAP = CAP;
-        
+
             for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
             {
                 if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
@@ -427,7 +428,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     const float weightA = rowBCP * invABC;
                     const float weightB = rowCAP * invABC;
                     const float weightC = rowABP * invABC;
-                    
+
                     ayPixelShaderBuiltIns tBuiltIns = {
                         .tUV = {vertexP.x, vertexP.y}
                     };

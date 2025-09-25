@@ -24,13 +24,8 @@ ayPixelShader_Textures(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInfo* tInfo,
     const ayVec2* ptUV = ay_get_varying(0, ptVaryingDataIn);
     ayTexture spriteTexture = *(ayTexture*)tInfo->atDescriptors[1].pData;
 
-
     ayVec4 tColor = ay_sample_texture(spriteTexture, *ptUV, 4);
     return tColor;
-
-    // testing this function
-    // ayVec4 tColorExtractedTexture = ay_extract_sprite_texture(spriteTexture, *ptUV, 4, 50, 50, 50, 50); 
-    // return tColorExtractedTexture;
 }
 
 ayVec2
@@ -129,7 +124,6 @@ int main()
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC4
-                
             },
             .szAttribOffset = {
                 0,
@@ -147,8 +141,8 @@ int main()
     ay_bind_texture(ptData, 1, &testTexture);
 
     // draw 
-    ay_bind_pipeline(ptData, &tPipelineTextures);
-    ay_draw_indexed(ptData, 0, iIndexCount);  
+    ay_bind_pipeline(ptData, &tPipelineColors);
+    // ay_draw_indexed(ptData, 0, 6);  
 
     // output frame
     ay_output_frame_buffer(ptFrameBuffer);
