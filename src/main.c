@@ -85,16 +85,16 @@ int main()
         .iHeight = iTextureHeight
     };
 
-    const int iCols = 1;
-    const int iRows = 1;
-    
+    const int iCols = 5;
+    const int iRows = 5;
+
     // Calculate required buffer sizes
     const int iVertexCount = iCols * iRows * 4; // 4 vertices per quad
     const int iIndexCount = iCols * iRows * 6;  // 6 indices per quad
-    
+
     float* atVertexBuffer = malloc(iVertexCount * 8 * sizeof(float)); // x,y,u,v
     uint32_t* atIndexBuffer = malloc(iIndexCount * sizeof(uint32_t));
-    
+
     ay_generate_quad_grid(iCols, iRows, atVertexBuffer, atIndexBuffer, true);
 
     ayPipeline tPipelineTextures = {
@@ -105,7 +105,6 @@ int main()
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC4
-                
             },
             .szAttribOffset = {
                 0,
@@ -117,6 +116,7 @@ int main()
     };
 
     ayPipeline tPipelineColors = {
+        .tVertexWinding = AY_VERTEX_WINDING_CLOCKWISE,
         .tPixelShader = ayPixelShader_Colors,
         .tVertexShader = ayVertexShader_Colors,
         .tLayout = {
@@ -142,7 +142,7 @@ int main()
 
     // draw 
     ay_bind_pipeline(ptData, &tPipelineColors);
-    // ay_draw_indexed(ptData, 0, 6);  
+    ay_draw(ptData, 0, iVertexCount);
 
     // output frame
     ay_output_frame_buffer(ptFrameBuffer);

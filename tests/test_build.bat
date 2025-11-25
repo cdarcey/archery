@@ -29,7 +29,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl draw_test.c ay_rasterize.c ay_helpers.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/stb" -MD -link -incremental:no 
+cl draw_test.c ../src/ay_rasterize.c ../src/ay_helpers.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/stb" -I"../src" -MD -link -incremental:no 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

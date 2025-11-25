@@ -64,6 +64,13 @@ typedef enum _ayVertexAttributeType
     AY_VERTEX_ATTRIBUTE_TYPE_FLOAT
 } ayVertexAttributeType;
 
+typedef enum _ayVertexWinding
+{
+    AY_VERTEX_WINDING_CLOCKWISE,
+    AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
+    AY_VERTEX_WINDING_NONE
+} ayVertexWinding;
+
 typedef union _ayVec2
 {
     struct { float x, y; };
@@ -173,6 +180,7 @@ typedef struct _ayPipeline
     ayVertexShader   tVertexShader;
     ayPixelShader    tPixelShader;
     ayVertexLayout   tLayout;
+    ayVertexWinding  tVertexWinding;
 } ayPipeline;
 
 //-----------------------------------------------------------------------------
@@ -212,7 +220,7 @@ void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
 // clock wise vertacies
-void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uIndexCount); 
+void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount); 
 // clock wise vertacies
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount); 
 
