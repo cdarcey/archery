@@ -1,9 +1,14 @@
 
 
+/*
+    TODO. add tests for all major rasterization realted functions
+        . create known output copies for comparisons 
+        .
+*/
+
 #include "ay_rasterize.h"
 #include "ay_helpers.h"
-#include <stdio.h>
-#include <stdlib.h>
+
 
 #define screenWidth  500
 #define screenHeight 500
