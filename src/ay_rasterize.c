@@ -33,7 +33,7 @@ typedef struct _ayGraphicsData
     const void*        pVerticies;
     ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
-    ayDescriptorInfo   tDescriptor; 
+    ayDescriptor       tDescriptors[16]; 
 } ayGraphicsData;
 
 //-----------------------------------------------------------------------------
@@ -88,7 +88,7 @@ static inline ayVec3
 ay_run_vertex_shader(ayGraphicsData* ptData, uint32_t idx, const char* pcVtxBuffer, ayVaryingData* pVarying) 
 {
     ayVertexShaderBuiltIns builtIns = {.uVertexID = idx, .tLayout = ptData->ptPipeline->tLayout};
-    return ptData->ptPipeline->tVertexShader(builtIns, &pcVtxBuffer[idx * ptData->ptPipeline->tLayout.szVertexStride], &ptData->tDescriptor, pVarying);
+    return ptData->ptPipeline->tVertexShader(builtIns, &pcVtxBuffer[idx * ptData->ptPipeline->tLayout.szVertexStride], ptData->tDescriptors, pVarying);
 }
 
 static inline void 
@@ -130,7 +130,7 @@ ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
     tNewWindow->pWindow = glfwCreateWindow(uWidth, uHeight, pcTitle, NULL, NULL);
     glfwMakeContextCurrent(tNewWindow->pWindow);
 
-    // Set up OpenGL for 2D rendering
+    // set up OpenGL for 2D rendering
     glViewport(0, 0, uWidth, uHeight);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
@@ -138,7 +138,7 @@ ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
-    // Create OpenGL texture for framebuffer
+    // create OpenGL texture for framebuffer
     glGenTextures(1, &tNewWindow->uframebufferTexture);
     glBindTexture(GL_TEXTURE_2D, tNewWindow->uframebufferTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, uWidth, uHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
@@ -215,17 +215,12 @@ ay_bind_vertex_buffer(ayGraphicsData* ptData, const void* pVertexBuffer)
     ptData->pVerticies = pVertexBuffer;
 };
 
-void
-ay_bind_buffer(ayGraphicsData* ptData, int bufferIndex, const void* ptDescBuffer)
+void 
+ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType eType, const void* pData)
 {
-    ptData->tDescriptor.atDescriptors[bufferIndex].pData = ptDescBuffer;
-};
-
-void
-ay_bind_texture(ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture)
-{
-    ptData->tDescriptor.atDescriptors[bufferIndex].pData = tTexture;
-};
+    ptData->tDescriptors[uBinding].eType = eType;
+    ptData->tDescriptors[uBinding].pData = pData;
+}
 
 void
 ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
@@ -353,7 +348,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                         if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
                         {
                             // run pixel shader
-                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                             float alphaScale = tFinalColor.a / 255.0f;
                             tFinalColor.r *= alphaScale;
                             tFinalColor.g *= alphaScale;
@@ -367,7 +362,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                     else
                     {
                         // no depth
-                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                         float alphaScale = tFinalColor.a / 255.0f;
                         tFinalColor.r *= alphaScale;
                         tFinalColor.g *= alphaScale;
@@ -514,7 +509,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
                         {
                             // run pixel shader
-                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                             float alphaScale = tFinalColor.a / 255.0f;
                             tFinalColor.r *= alphaScale;
                             tFinalColor.g *= alphaScale;
@@ -528,7 +523,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     else
                     {
                         // no depth
-                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                         float alphaScale = tFinalColor.a / 255.0f;
                         tFinalColor.r *= alphaScale;
                         tFinalColor.g *= alphaScale;
@@ -674,25 +669,25 @@ ay_extract_sprite_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, 
 {
 
     // TODO: needs work 
-    // Convert sprite bounds to normalized UV coordinates
+    // convert sprite bounds to normalized UV coordinates
     float startU = (float)iSpriteX / tTexture.iWidth;
     float startV = (float)iSpriteY / tTexture.iHeight;
     float endU = (float)(iSpriteX + iSpriteWidth) / tTexture.iWidth;
     float endV = (float)(iSpriteY + iSpriteHeight) / tTexture.iHeight;
 
-    // Map sprite-local UV (0-1) to atlas UV
+    // map sprite-local UV (0-1) to atlas UV
     float atlasU = startU + (tUV.x) * (endU - startU);
     float atlasV = startV + (tUV.y) * (endV - startV);
 
-    // Convert to pixel coordinates
+    // convert to pixel coordinates
     int iPixelX = (int)(atlasU * (tTexture.iWidth - 1));
     int iPixelY = (int)(atlasV * (tTexture.iHeight - 1));
 
-    // Clamp to texture bounds
+    // clamp to texture bounds
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
 
-    // Compute offset and sample
+    // compute offset and sample
     int iPixelStart = (iPixelY * tTexture.iWidth + iPixelX) * uComponents;
 
     return (ayVec4){
@@ -707,11 +702,11 @@ ay_extract_sprite_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, 
 ayVec4
 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-    // Convert UV to exact pixel coordinates (floating point)
+    // convert UV to exact pixel coordinates (floating point)
     float fPixelX = tUV.x * (tTexture.iWidth - 1);
     float fPixelY = (1.0f - tUV.y) * (tTexture.iHeight - 1);
     
-    // Get integer coordinates of surrounding pixels
+    // get integer coordinates of surrounding pixels
     int iX0 = (int)fPixelX;
     int iY0 = (int)fPixelY;
     int iX1 = iX0 + 1;
@@ -721,18 +716,18 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
     int iOffsetStartForPassthrough = (iY0 * tTexture.iWidth + iX0) * uComponents;
     float alphaPassthrough = (float)tTexture.pucData[iOffsetStartForPassthrough + 3];
     
-    // Clamp coordinates to texture bounds
+    // clamp coordinates to texture bounds
     iX1 = iX1 >= tTexture.iWidth ? tTexture.iWidth - 1 : iX1;
     iY1 = iY1 >= tTexture.iHeight ? tTexture.iHeight - 1 : iY1;
     
-    // Calculate fractional parts for interpolation
+    // calculate fractional parts for interpolation
     float fFracX = fPixelX - iX0;
     float fFracY = fPixelY - iY0;
     
-    // Sample all 4 surrounding pixels
+    // sample all 4 surrounding pixels
     ayVec3 topLeft, bottomLeft, topRight, bottomRight; 
     
-    // Top left 
+    // top left 
     int iOffset = (iY0 * tTexture.iWidth + iX0) * uComponents;
     topLeft = (ayVec3){
         (float)tTexture.pucData[iOffset],
@@ -740,7 +735,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iOffset + 2]
     };
     
-    // Top right 
+    // top right 
     iOffset = (iY0 * tTexture.iWidth + iX1) * uComponents;
     topRight = (ayVec3){
         (float)tTexture.pucData[iOffset],
@@ -748,7 +743,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iOffset + 2]
     };
     
-    // Bottom left 
+    // bottom left 
     iOffset = (iY1 * tTexture.iWidth + iX0) * uComponents;
     bottomLeft = (ayVec3){
         (float)tTexture.pucData[iOffset],
@@ -756,7 +751,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iOffset + 2]
     };
     
-    // Bottom right 
+    // bottom right 
     iOffset = (iY1 * tTexture.iWidth + iX1) * uComponents;
     bottomRight = (ayVec3){
         (float)tTexture.pucData[iOffset],
@@ -764,7 +759,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         (float)tTexture.pucData[iOffset + 2]
     };
     
-    // Linear interpolation horizontally
+    // linear interpolation horizontally
     // top
     ayVec3 tTop = {
         topLeft.r + fFracX * (bottomRight.r - topLeft.r),
@@ -779,7 +774,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
         bottomLeft.b + fFracX * (bottomRight.b - bottomLeft.b)
     };
     
-    // Linear interpolation vertically (final result)
+    // linear interpolation vertically (final result)
     ayVec4 tResult = {
         tTop.r + fFracY * (tBottom.r - tTop.r),
         tTop.g + fFracY * (tBottom.g - tTop.g),

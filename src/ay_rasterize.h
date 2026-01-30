@@ -26,6 +26,8 @@ Index of this file:
 #include <stddef.h> // size_t
 #include <stdbool.h> // bool
 
+#include "ay_math.h"
+
 //-----------------------------------------------------------------------------
 // [SECTION] enums
 //-----------------------------------------------------------------------------
@@ -56,6 +58,13 @@ typedef enum _ayVertexWinding
     AY_VERTEX_WINDING_NONE
 } ayVertexWinding;
 
+typedef enum _ayDescriptorType
+{
+    AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+    AY_DESCRIPTOR_TYPE_TEXTURE,
+    AY_DESCRIPTOR_TYPE_STORAGE
+} ayDescriptorType;
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -84,67 +93,6 @@ typedef struct _ayTexture
     int            iHeight;
     int            iWidth;
 } ayTexture;
-
-typedef union _ayVec2
-{
-    struct { float x, y; };
-    struct { float r, g; };
-    struct { float u, v; };
-    float d[2];
-} ayVec2;
-
-typedef union _ayVec3
-{
-    struct { float x, y, z; };
-    struct { float r, g, b; };
-    struct { float u, v, __; };
-    struct { ayVec2 xy; float ignore0_; };
-    struct { ayVec2 rg; float ignore1_; };
-    struct { ayVec2 uv; float ignore2_; };
-    struct { float ignore3_; ayVec2 yz; };
-    struct { float ignore4_; ayVec2 gb; };
-    struct { float ignore5_; ayVec2 v__; };
-    float d[3];
-} ayVec3;
-
-typedef union _ayVec4
-{
-    struct
-    {
-        union
-        {
-            ayVec3 xyz;
-            struct{ float x, y, z;};
-        };
-        float w;
-    };
-    struct
-    {
-        union
-        {
-            ayVec3 rgb;
-            struct{ float r, g, b;};
-        };
-        float a;
-    };
-    struct
-    {
-        ayVec2 xy;
-        float ignored0_, ignored1_;
-    };
-    struct
-    {
-        float ignored2_;
-        ayVec2 yz;
-        float ignored3_;
-    };
-    struct
-    {
-        float ignored4_, ignored5_;
-        ayVec2 zw;
-    };
-    float d[4];
-} ayVec4;
 
 typedef struct _ayVertexLayout
 {
@@ -177,17 +125,13 @@ typedef struct _ayVaryingData
 
 typedef struct _ayDescriptor
 {
-    const void* pData;
+    const void*      pData;
+    ayDescriptorType eType;
 } ayDescriptor;
 
-typedef struct _ayDescriptorInfo
-{
-    ayDescriptor atDescriptors[16];
-} ayDescriptorInfo;
-
 // function pointers
-typedef ayVec4 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn);
-typedef ayVec3 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
+typedef ayVec4 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn);
+typedef ayVec3 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
 {
@@ -229,11 +173,10 @@ ayVec4 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComp
 // frame buffers
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);
 
-// buffers
+// buffers & descriptors
 void ay_bind_index_buffer (ayGraphicsData*, uint32_t*);
 void ay_bind_vertex_buffer(ayGraphicsData*, const void*);
-void ay_bind_buffer       (ayGraphicsData*, int bufferIndex, const void*);
-void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* tTexture);
+void ay_bind_descriptor(ayGraphicsData* ptData, uint32_t binding, ayDescriptorType type, const void* pData);
 
 // pipelines
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
