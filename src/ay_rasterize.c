@@ -41,7 +41,7 @@ typedef struct _ayGraphicsData
 //-----------------------------------------------------------------------------
 
 static inline float
-ay_edge_function(ayVec2 one, ayVec2 two, ayVec2 three)
+ay_edge_function(ayVec3 one, ayVec3 two, ayVec3 three)
 {
     return(two.x - one.x) * (three.y - one.y) - (two.y - one.y) * (three.x - one.x);
 };
@@ -77,14 +77,14 @@ ay_max3(int a, int b, int c)
 }
 
 static inline void 
-ay_compute_edge_coeffs(ayVec2 v0, ayVec2 v1, float* a, float* b, float* c) 
+ay_compute_edge_coeffs(ayVec3 v0, ayVec3 v1, float* a, float* b, float* c) 
 {
     *a = v0.y - v1.y;
     *b = v1.x - v0.x;
     *c = v0.x * v1.y - v1.x * v0.y;
 }
 
-static inline ayVec2 
+static inline ayVec3 
 ay_run_vertex_shader(ayGraphicsData* ptData, uint32_t idx, const char* pcVtxBuffer, ayVaryingData* pVarying) 
 {
     ayVertexShaderBuiltIns builtIns = {.uVertexID = idx, .tLayout = ptData->ptPipeline->tLayout};
@@ -92,7 +92,7 @@ ay_run_vertex_shader(ayGraphicsData* ptData, uint32_t idx, const char* pcVtxBuff
 }
 
 static inline void 
-ay_ndc_to_screen(ayVec2* ayVert, uint32_t uWidth, uint32_t uHeight) 
+ay_ndc_to_screen(ayVec3* ayVert, uint32_t uWidth, uint32_t uHeight) 
 {
     ayVert->x = uWidth *  (0.5f + 0.5f * ayVert->x);
     ayVert->y = uHeight * (0.5f + 0.5f * ayVert->y);
@@ -118,6 +118,77 @@ initialize_graphics(void)
     memset(ptData, 0, sizeof(ayGraphicsData));
 
     return ptData;
+}
+
+ayWindow* 
+ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
+{
+    ayWindow* tNewWindow = malloc(sizeof(ayWindow));
+    if(!tNewWindow) return NULL;
+
+    glfwInit();
+    tNewWindow->pWindow = glfwCreateWindow(uWidth, uHeight, pcTitle, NULL, NULL);
+    glfwMakeContextCurrent(tNewWindow->pWindow);
+
+    // Set up OpenGL for 2D rendering
+    glViewport(0, 0, uWidth, uHeight);
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
+    glOrtho(0, uWidth, uHeight, 0, -1, 1); // Y-down coordinates
+    glMatrixMode(GL_MODELVIEW);
+    glLoadIdentity();
+
+    // Create OpenGL texture for framebuffer
+    glGenTextures(1, &tNewWindow->uframebufferTexture);
+    glBindTexture(GL_TEXTURE_2D, tNewWindow->uframebufferTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, uWidth, uHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    // store values
+    tNewWindow->uWidth  = uWidth;
+    tNewWindow->uHeight = uHeight;
+
+    return tNewWindow;
+}
+
+void
+ay_destroy_window(ayWindow* ptWindow)
+{
+    if(!ptWindow) return;
+    
+    glDeleteTextures(1, &ptWindow->uframebufferTexture);
+    glfwDestroyWindow(ptWindow->pWindow);
+    glfwTerminate();
+    free(ptWindow);
+}
+
+bool 
+ay_window_should_close(ayWindow* ptWindow)
+{
+    return glfwWindowShouldClose(ptWindow->pWindow);
+}
+
+void 
+ay_present_frame(ayWindow* ptWindow, ayFrameBufferData* ptFrameBuffer)
+{
+    // upload framebuffer pixels to gl texture
+    glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ptFrameBuffer->uWidth, ptFrameBuffer->uHeight, 
+                    GL_RGBA, GL_UNSIGNED_BYTE, ptFrameBuffer->pucData);
+    
+    // draw fullscreen quad with texture
+    glEnable(GL_TEXTURE_2D);
+    glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
+    glBegin(GL_QUADS);
+        glTexCoord2f(0, 0); glVertex2f(0, 0);
+        glTexCoord2f(1, 0); glVertex2f(ptWindow->uWidth, 0);
+        glTexCoord2f(1, 1); glVertex2f(ptWindow->uWidth, ptWindow->uHeight);
+        glTexCoord2f(0, 1); glVertex2f(0, ptWindow->uHeight);
+    glEnd();
+    
+    glfwSwapBuffers(ptWindow->pWindow);
 }
 
 void
@@ -183,9 +254,9 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         ayVaryingData tVaryingData2 = {0};
 
         // vertex shader stage
-        ayVec2 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
-        ayVec2 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
-        ayVec2 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+        ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
+        ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
+        ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
 
         // frame buffer space transformation
         ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
@@ -274,13 +345,35 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                         }
                     }
 
-                    // run pixel shader
-                    ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
-                    float alphaScale = tFinalColor.a / 255.0f;
-                    tFinalColor.r *= alphaScale;
-                    tFinalColor.g *= alphaScale;
-                    tFinalColor.b *= alphaScale;
-                    ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                    if(ptData->ptFrameBufferData->bDepthEnabled)
+                    {
+                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
+                        int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
+
+                        if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
+                        {
+                            // run pixel shader
+                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                            float alphaScale = tFinalColor.a / 255.0f;
+                            tFinalColor.r *= alphaScale;
+                            tFinalColor.g *= alphaScale;
+                            tFinalColor.b *= alphaScale;
+                            ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+
+                            // update depth buffer
+                            ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex] = fPixelDepth;
+                        }
+                    }
+                    else
+                    {
+                        // no depth
+                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                        float alphaScale = tFinalColor.a / 255.0f;
+                        tFinalColor.r *= alphaScale;
+                        tFinalColor.g *= alphaScale;
+                        tFinalColor.b *= alphaScale;
+                        ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                    }
                 }
                 // Incrementally update edge functions for next pixel in row
                 rowABP += ABa;
@@ -322,9 +415,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVaryingData tVaryingData2 = {0};
 
         // vertex shader stage
-        ayVec2 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
-        ayVec2 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
-        ayVec2 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+        ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
+        ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
+        ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
 
         // frame buffer space transformation
         ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
@@ -334,19 +427,19 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
-        // Bounding box with clamping
+        // bounding box with clamping
         const uint32_t minX = ay_max(0, ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) - 1);
         const uint32_t minY = ay_max(0, ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) - 1);
         const uint32_t maxX = ay_min(fbWidth-1, ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) + 1);
         const uint32_t maxY = ay_min(fbHeight-1, ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) + 1);
 
-        // Precompute edge function coefficients
+        // precompute edge function coefficients
         float ABa, ABb, ABc, BCa, BCb, BCc, CAa, CAb, CAc;
         ay_compute_edge_coeffs(tVertex0, tVertex1, &ABa, &ABb, &ABc);
         ay_compute_edge_coeffs(tVertex1, tVertex2, &BCa, &BCb, &BCc);
         ay_compute_edge_coeffs(tVertex2, tVertex0, &CAa, &CAb, &CAc);
 
-        // Initialize at start of row
+        // initialize at start of row
         float ABP = ABa * minX + ABb * minY + ABc;
         float BCP = BCa * minX + BCb * minY + BCc;
         float CAP = CAa * minX + CAb * minY + CAc;
@@ -373,7 +466,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         .tUV = {vertexP.x, vertexP.y}
                     };
 
-                    // Varying system
+                    // varying system
                     int varyDataOffset = 0;
                     ayVaryingData blendedVaryingData = {0};
 
@@ -413,13 +506,35 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         }
                     }
 
-                    // run pixel shader
-                    ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
-                    float alphaScale = tFinalColor.a / 255.0f;
-                    tFinalColor.r *= alphaScale;
-                    tFinalColor.g *= alphaScale;
-                    tFinalColor.b *= alphaScale;
-                    ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                    if(ptData->ptFrameBufferData->bDepthEnabled)
+                    {
+                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
+                        int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
+
+                        if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
+                        {
+                            // run pixel shader
+                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                            float alphaScale = tFinalColor.a / 255.0f;
+                            tFinalColor.r *= alphaScale;
+                            tFinalColor.g *= alphaScale;
+                            tFinalColor.b *= alphaScale;
+                            ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+
+                            // update depth buffer
+                            ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex] = fPixelDepth;
+                        }
+                    }
+                    else
+                    {
+                        // no depth
+                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, &ptData->tDescriptor, &blendedVaryingData);
+                        float alphaScale = tFinalColor.a / 255.0f;
+                        tFinalColor.r *= alphaScale;
+                        tFinalColor.g *= alphaScale;
+                        tFinalColor.b *= alphaScale;
+                        ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+                    }
                 }
                 // Incrementally update edge functions for next pixel in row
                 rowABP += ABa;
@@ -462,7 +577,7 @@ ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_
 };
 
 ayFrameBufferData*
-ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
+ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled)
 {
     ayFrameBufferData* ptData = malloc(sizeof(ayFrameBufferData));
     memset(ptData, 0, sizeof(ayFrameBufferData));
@@ -471,6 +586,16 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight)
     ptData->uHeight = uHeight;
     ptData->pucData = malloc(sizeof(char) * 4 * uWidth * uHeight);
     memset(ptData->pucData, 0, sizeof(char) * 4 * uWidth * uHeight);
+
+    if(bDepthEnabled)
+    {
+        ptData->bDepthEnabled = bDepthEnabled;
+        ptData->pfDepthBuffer = malloc(sizeof(float) * uHeight * uWidth);
+        for(uint32_t i = 0; i < uWidth * uHeight; i++)
+        {
+            ptData->pfDepthBuffer[i] = 1.0f;
+        }
+    }
 
     return ptData;
 };
@@ -485,6 +610,13 @@ void
 ay_clear_frame_buffer(ayFrameBufferData* ptData)
 {
     memset(ptData->pucData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
+    
+    // clear depth buffer if enabled
+    if(ptData->bDepthEnabled && ptData->pfDepthBuffer)
+    {
+        for(uint32_t i = 0; i < ptData->uWidth * ptData->uHeight; i++)
+            ptData->pfDepthBuffer[i] = 1.0f;
+    }
 };
 
 void*
@@ -540,6 +672,8 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 ayVec4 
 ay_extract_sprite_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, int iSpriteX, int iSpriteY, int iSpriteWidth, int iSpriteHeight)
 {
+
+    // TODO: needs work 
     // Convert sprite bounds to normalized UV coordinates
     float startU = (float)iSpriteX / tTexture.iWidth;
     float startV = (float)iSpriteY / tTexture.iHeight;

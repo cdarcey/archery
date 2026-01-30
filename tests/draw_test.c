@@ -22,14 +22,14 @@ draw_function_test_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptorInf
     return (ayVec4){ptColor->r * 255, ptColor->g * 255, ptColor->b * 255, 1.f * 255};
 }
 
-ayVec2 
+ayVec3 
 draw_function_test_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut) 
 {
     ayVertexLayout vertLayout = tBuiltIns.tLayout;
     const char* pcVertexDataIn = pVertexDataIn;
 
     // get vertex attributes (inputs)
-    ayVec2 tPos = *(ayVec2*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 0); 
+    ayVec3 tPos = *(ayVec3*)ay_get_vertex_attrib(pVertexDataIn, vertLayout, 0); 
     ayVec4 tColor = *(ayVec4*)ay_get_vertex_attrib(pcVertexDataIn, vertLayout, 2);
 
     // set varyings (outputs)
@@ -43,44 +43,44 @@ draw_function_test_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* p
 int main()
 {
     ayGraphicsData* ptData = initialize_graphics();
-    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight);
+    ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, true);
     ay_clear_frame_buffer(ptFrameBuffer);
 
-float afVertexBuffer[] = {
-    // triangle 1 (bottom-left, bottom-right, top-right)
+    float afVertexBuffer[] = {
+        // triangle 1 (bottom-left, bottom-right, top-right)
 
-    // vertex 0 -> bottom-left (red)
-    -0.75f, 0.75f,            // position
-     0.0f,  0.0f,             // uv (for adding textures to test later)
-     1.0f, 0.0f, 0.0f, 1.0f,  // color: red
+        // vertex 0 -> bottom-left (red)
+        -0.75f, 0.75f, 0.5f,      // position (x, y, z)
+        0.0f,  0.0f,             // uv (for adding textures to test later)
+        1.0f, 0.0f, 0.0f, 1.0f,  // color: red
 
-    // vertex 1 -> bottom-right (green)
-     0.75f, 0.75f,            // position
-     1.0f,  0.0f,             // uv
-     0.0f, 1.0f, 0.0f, 1.0f,  // color: green
+        // vertex 1 -> bottom-right (green)
+        0.75f, 0.75f, 0.5f,      // position
+        1.0f,  0.0f,             // uv
+        0.0f, 1.0f, 0.0f, 1.0f,  // color: green
 
-    // vertex 2 -> top-right (blue)
-     0.75f,  -0.75f,          // position
-     1.0f,   1.0f,            // uv
-     0.0f, 0.0f, 1.0f, 1.0f,  // color: blue
+        // vertex 2 -> top-right (blue)
+        0.75f, -0.75f, 0.5f,     // position
+        1.0f,  1.0f,             // uv
+        0.0f, 0.0f, 1.0f, 1.0f,  // color: blue
 
-    // triangle 2 (bottom-left, top-right, top-left)
+        // triangle 2 (bottom-left, top-right, top-left)
 
-    // vertex 3 -> bottom-left (red) - DUPLICATE
-    -0.75f, 0.75f,            // position
-     0.0f,  0.0f,             // uv
-     1.0f, 0.0f, 0.0f, 1.0f,  // color: red
+        // vertex 3 -> bottom-left (red) - DUPLICATE
+        -0.75f, 0.75f, 0.5f,      // position
+        0.0f,  0.0f,             // uv
+        1.0f, 0.0f, 0.0f, 1.0f,  // color: red
 
-    // vertex 4 -> top-right (blue) - DUPLICATE
-     0.75f,  -0.75f,          // position 
-     1.0f,   1.0f,            // uv
-     0.0f, 0.0f, 1.0f, 1.0f,  // color: blue
+        // vertex 4 -> top-right (blue) - DUPLICATE
+        0.75f, -0.75f, 0.5f,     // position 
+        1.0f,  1.0f,             // uv
+        0.0f, 0.0f, 1.0f, 1.0f,  // color: blue
 
-    // vertex 5 -> top-left (yellow)
-    -0.75f,  -0.75f,         // position 
-     0.0f,   1.0f,           // uv
-     1.0f, 1.0f, 0.0f, 1.0f  // color: yellow
-};
+        // vertex 5 -> top-left (yellow)
+        -0.75f, -0.75f, 0.5f,     // position 
+        0.0f,  1.0f,             // uv
+        1.0f, 1.0f, 0.0f, 1.0f   // color: yellow
+    };
 
     ayPipeline tDrawFunctionTestPipeline = {
         .tVertexWinding = AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
@@ -88,16 +88,16 @@ float afVertexBuffer[] = {
         .tVertexShader = draw_function_test_vertex_shader,
         .tLayout = {
             .tAttribType = {
-                AY_VERTEX_ATTRIBUTE_TYPE_VEC2,  // position
+                AY_VERTEX_ATTRIBUTE_TYPE_VEC3,  // position (x, y, z)
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC2,  // uv
                 AY_VERTEX_ATTRIBUTE_TYPE_VEC4   // color
             },
             .szAttribOffset = {
                 0,
-                sizeof(ayVec2),
-                sizeof(ayVec2) + sizeof(ayVec2)
+                sizeof(ayVec3),
+                sizeof(ayVec3) + sizeof(ayVec2)
             },
-            .szVertexStride = sizeof(float) * 8,
+            .szVertexStride = sizeof(float) * 9,  // 3 + 2 + 4
         }
     };
 

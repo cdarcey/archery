@@ -21,29 +21,14 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
+#include <glfw3.h> // windowing
 #include <stdint.h> // uint*_t
 #include <stddef.h> // size_t
 #include <stdbool.h> // bool
 
 //-----------------------------------------------------------------------------
-// [SECTION] structs
+// [SECTION] enums
 //-----------------------------------------------------------------------------
-
-typedef struct _ayGraphicsData ayGraphicsData;    // opaque
-
-typedef struct _ayFrameBufferData
-{
-    uint32_t       uWidth;
-    uint32_t       uHeight;
-    unsigned char* pucData;
-} ayFrameBufferData;
-
-typedef struct _ayTexture
-{
-    unsigned char* pucData;
-    int            iHeight;
-    int            iWidth;
-} ayTexture;
 
 typedef enum _ayVaryingType
 {
@@ -70,6 +55,35 @@ typedef enum _ayVertexWinding
     AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
     AY_VERTEX_WINDING_NONE
 } ayVertexWinding;
+
+//-----------------------------------------------------------------------------
+// [SECTION] structs
+//-----------------------------------------------------------------------------
+
+typedef struct _ayGraphicsData ayGraphicsData;    // opaque
+
+typedef struct ayWindow {
+    GLFWwindow* pWindow;
+    GLuint      uframebufferTexture;      // gl texture id for framebuffer
+    uint32_t    uWidth;
+    uint32_t    uHeight;
+} ayWindow;
+
+typedef struct _ayFrameBufferData
+{
+    uint32_t       uWidth;
+    uint32_t       uHeight;
+    unsigned char* pucData;
+    float*         pfDepthBuffer;
+    bool           bDepthEnabled;
+} ayFrameBufferData;
+
+typedef struct _ayTexture
+{
+    unsigned char* pucData;
+    int            iHeight;
+    int            iWidth;
+} ayTexture;
 
 typedef union _ayVec2
 {
@@ -173,7 +187,7 @@ typedef struct _ayDescriptorInfo
 
 // function pointers
 typedef ayVec4 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptorInfo* tInfo, const ayVaryingData* ptVaryingDataIn);
-typedef ayVec2 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
+typedef ayVec3 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptorInfo* tInfo, ayVaryingData* ptVaryingDataOut);
 
 typedef struct _ayPipeline
 {
@@ -191,8 +205,14 @@ typedef struct _ayPipeline
 
 ayGraphicsData* initialize_graphics(void);
 
+// windowing & presenting
+ayWindow* ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle);
+void      ay_destroy_window(ayWindow* ptWindow);
+bool      ay_window_should_close(ayWindow* ptWindow);
+void      ay_present_frame(ayWindow* ptWindow, ayFrameBufferData* ptFrameBuffer);
+
 // framebuffer ops
-ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight);
+ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled);
 void               ay_output_frame_buffer    (ayFrameBufferData*);
 void               ay_clear_frame_buffer     (ayFrameBufferData*);
 
@@ -219,9 +239,7 @@ void ay_bind_texture      (ayGraphicsData* ptData, int bufferIndex, ayTexture* t
 void ay_bind_pipeline(ayGraphicsData*, ayPipeline*);
 
 // draw calls
-// clock wise vertacies
 void ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount); 
-// clock wise vertacies
 void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount); 
 
 //----------------------------shader helpers-----------------------------------

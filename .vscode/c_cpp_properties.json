@@ -6,7 +6,8 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src",
-                "${workspaceFolder}/dependencies/stb"
+                "${workspaceFolder}/dependencies/stb",
+                "${workspaceFolder}/dependencies/GLFW/"
             ],
             "defines": [
                 "_DEBUG"
