@@ -83,7 +83,7 @@ typedef struct _ayFrameBufferData
     uint32_t       uWidth;
     uint32_t       uHeight;
     unsigned char* pucData;
-    float*         pfDepthBuffer;
+    float*         pfDepthBuffer; // reverse 0 is far
     bool           bDepthEnabled;
 } ayFrameBufferData;
 

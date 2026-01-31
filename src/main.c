@@ -2,9 +2,23 @@
 #include "ay_helpers.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define screenWidth  750
 #define screenHeight 750
+
+typedef struct _ayProfileInfo
+{
+    char   pcName[64];
+    double dStartTime;
+    double dEndTime;
+    double dTotalTime;
+    double dDuration;
+    int    iCallCount;
+} ayProfileInfo;
+
+void start_profile(ayProfileInfo* tInfo, const char* pcName);
+void end_profile(ayProfileInfo* tInfo);
 
 ayVec4
 ayPixelShader_test(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn)
@@ -116,6 +130,7 @@ int main()
     double dLastFrameTime = glfwGetTime();
     int    iFrameCount = 0;
     float  fRotation = 0.0f;
+    ayProfileInfo* tTestProfile = malloc(sizeof(ayProfileInfo));
 
     while(!ay_window_should_close(ptTestWindow)) 
     {
@@ -125,7 +140,6 @@ int main()
         double dCurrentTime = glfwGetTime();
         float fDeltaTime = (float)(dCurrentTime - dLastFrameTime);
         dLastFrameTime = dCurrentTime;
-        
         iFrameCount++;
         
         // update fps every second
@@ -141,7 +155,6 @@ int main()
             iFrameCount = 0;
             dLastFPSTime = dCurrentTime;
         }
-    
         fRotation += fDeltaTime * 1.0f;
 
         // create model matrix with rotation and translation
@@ -153,21 +166,24 @@ int main()
     
         // clear buffers each frame
         ay_clear_frame_buffer(ptFrameBuffer);
-
+        
+        
         ay_bind_frame_buffer(ptData, ptFrameBuffer);
         ay_bind_vertex_buffer(ptData, fCubeVertices);
         ay_bind_index_buffer(ptData, uCubeIndices);
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &mvp);
         ay_bind_descriptor(ptData, 1, AY_DESCRIPTOR_TYPE_TEXTURE, &testTexture);
+        
 
         // draw both triangles
         ay_bind_pipeline(ptData, &tPipeline);
         ay_draw_indexed(ptData, 0, 36);  // 36 indices = 12 triangles
 
         // present to window
-        ay_present_frame(ptTestWindow, ptFrameBuffer);
-        ay_output_frame_buffer(ptFrameBuffer);
+        ay_present_frame(ptTestWindow, ptFrameBuffer); 
     }
+
+    free(tTestProfile);
 
     // clean up
     ay_destroy_window(ptTestWindow);
@@ -177,4 +193,27 @@ int main()
     free(ptData);
 
     return 0;
+}
+
+void 
+start_profile(ayProfileInfo* tInfo, const char* pcName)
+{
+    tInfo->dStartTime = glfwGetTime();
+    strncpy(tInfo->pcName, pcName, sizeof(tInfo->pcName) - 1);
+    tInfo->pcName[sizeof(tInfo->pcName) - 1] = '\0';  // null terminate
+    tInfo->iCallCount++;
+    tInfo->dTotalTime = 0.0;
+}
+
+void 
+end_profile(ayProfileInfo* tInfo)
+{
+    tInfo->dEndTime = glfwGetTime();
+    tInfo->dDuration = (tInfo->dEndTime - tInfo->dStartTime) * 1000;
+    tInfo->dTotalTime += tInfo->dDuration;
+    if(tInfo->iCallCount > 60) 
+    {
+        tInfo->iCallCount = 0;
+        printf("%s: = %lfms\n",tInfo->pcName, tInfo->dDuration); 
+    }
 }

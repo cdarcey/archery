@@ -345,7 +345,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
                         int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
 
-                        if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
+                        if(fPixelDepth > ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
                         {
                             // run pixel shader
                             ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
@@ -506,7 +506,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
                         int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
 
-                        if(fPixelDepth < ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
+                        if(fPixelDepth > ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
                         {
                             // run pixel shader
                             ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
@@ -601,18 +601,17 @@ ay_output_frame_buffer(ayFrameBufferData* ptData)
     stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 4, ptData->pucData, sizeof(char) * 4 * ptData->uWidth);
 };
 
+// depth buffer clear value is 0
 void
 ay_clear_frame_buffer(ayFrameBufferData* ptData)
 {
     memset(ptData->pucData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
-    
-    // clear depth buffer if enabled
+        
     if(ptData->bDepthEnabled && ptData->pfDepthBuffer)
     {
-        for(uint32_t i = 0; i < ptData->uWidth * ptData->uHeight; i++)
-            ptData->pfDepthBuffer[i] = 1.0f;
+        memset(ptData->pfDepthBuffer, 0, ptData->uWidth * ptData->uHeight * sizeof(float));
     }
-};
+}
 
 void*
 ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut)
@@ -650,7 +649,7 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to pixel coords
     int iPixelX = (int)((tUV.x) * (tTexture.iWidth - 1));
-    int iPixelY = (int)((1.0f - tUV.y) * (tTexture.iHeight - 1));
+    int iPixelY = (int)((tUV.y) * (tTexture.iHeight - 1));
     // clamp to texture bounds 
     iPixelX = iPixelX < 0 ? 0 : (iPixelX >= tTexture.iWidth ? tTexture.iWidth - 1 : iPixelX);
     iPixelY = iPixelY < 0 ? 0 : (iPixelY >= tTexture.iHeight ? tTexture.iHeight - 1 : iPixelY);
@@ -704,7 +703,7 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
     // convert UV to exact pixel coordinates (floating point)
     float fPixelX = tUV.x * (tTexture.iWidth - 1);
-    float fPixelY = (1.0f - tUV.y) * (tTexture.iHeight - 1);
+    float fPixelY = tUV.y * (tTexture.iHeight - 1);
     
     // get integer coordinates of surrounding pixels
     int iX0 = (int)fPixelX;
