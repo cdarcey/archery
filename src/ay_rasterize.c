@@ -16,10 +16,21 @@ Index of this file:
 // [SECTION] includes
 //-----------------------------------------------------------------------------
 
-#include "ay_rasterize.h"
+
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+
+
+#include "ay_rasterize.h"
+#define AY_RASTERIZE_PROFILE_ENABLED
+#include "ay_rasterize_profile.h"
+
+#ifdef AY_RASTERIZE_PROFILE_ENABLED
+ayDrawIndProfiler g_raster_profiler = {0};
+#endif
+
+
 #include "stb_image_write.h"
 #include "stb_image.h"
 
@@ -394,7 +405,6 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
 
     ayVec2 vertexP = {.x = 0, .y = 0};
-
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
         const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
@@ -410,9 +420,16 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ayVaryingData tVaryingData2 = {0};
 
         // vertex shader stage
+        #ifdef AY_DRAW_PROFILER_IMPLEMENTATION
+        double dStartVertStage = glfwGetTime();
+        #endif
         ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
         ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
         ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+        #ifdef AY_DRAW_PROFILER_IMPLEMENTATION
+        double dEndVertStage = glfwGetTime();
+        ay_profile_vertex_stage((dEndVertStage - dStartVertStage) * 1000);
+        #endif
 
         // frame buffer space transformation
         ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
@@ -441,6 +458,8 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         const float invABC = 1.0f / ABC;
 
+
+        PROFILE_START(PixelLoop);
         for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
         {
             float rowABP = ABP;
@@ -449,9 +468,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
             for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
             {
-                if((rowABP * fWindingSign) >= 0 && 
-                   (rowBCP * fWindingSign) >= 0 && 
-                   (rowCAP * fWindingSign) >= 0)
+                if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
                 {
                     const float weightA = rowBCP * invABC;
                     const float weightB = rowCAP * invABC;
@@ -460,9 +477,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                     ayPixelShaderBuiltIns tBuiltIns = {
                         .tUV = {vertexP.x, vertexP.y}
                     };
-
+                    
                     // varying system
-                    int varyDataOffset = 0;
+                    int iVaryDataOffset = 0;
                     ayVaryingData blendedVaryingData = {0};
 
                     for(uint32_t j = 0; j < 16; j++)
@@ -488,19 +505,19 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
                         if(componentCount > 0)
                         {
-                            const float* v0 = (const float*)&tVaryingData0.acVaryingData[varyDataOffset];
-                            const float* v1 = (const float*)&tVaryingData1.acVaryingData[varyDataOffset];
-                            const float* v2 = (const float*)&tVaryingData2.acVaryingData[varyDataOffset];
-                            float* dest = (float*)&blendedVaryingData.acVaryingData[varyDataOffset];
+                            const float* v0 = (const float*)&tVaryingData0.acVaryingData[iVaryDataOffset];
+                            const float* v1 = (const float*)&tVaryingData1.acVaryingData[iVaryDataOffset];
+                            const float* v2 = (const float*)&tVaryingData2.acVaryingData[iVaryDataOffset];
+                            float* dest = (float*)&blendedVaryingData.acVaryingData[iVaryDataOffset];
 
                             for(int c = 0; c < componentCount; c++)
                             {
                                 dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
                             }
-                            varyDataOffset += componentCount * sizeof(float);
+                            iVaryDataOffset += componentCount * sizeof(float);
                         }
                     }
-
+                    
                     if(ptData->ptFrameBufferData->bDepthEnabled)
                     {
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
@@ -531,16 +548,17 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                     }
                 }
-                // Incrementally update edge functions for next pixel in row
+                // incrementally update edge functions for next pixel in row
                 rowABP += ABa;
                 rowBCP += BCa;
                 rowCAP += CAa;
             }
-            // Incrementally update edge functions for next row
+            // incrementally update edge functions for next row
             ABP += ABb;
             BCP += BCb;
             CAP += CAb;
         }
+        PROFILE_END(PixelLoop);
     }
 }
 

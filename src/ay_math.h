@@ -153,4 +153,14 @@ ayMat4 ay_mat4_translate(float x, float y, float z)
     return tResult;
 }
 
+static inline 
+ayMat4 ay_mat4_scale(float x, float y, float z)
+{
+    ayMat4 result = ay_mat4_identity();
+    result.m[0][0] = x;
+    result.m[1][1] = y;
+    result.m[2][2] = z;
+    return result;
+}
+
 #endif
