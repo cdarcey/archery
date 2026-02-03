@@ -58,6 +58,7 @@ int main()
     
     while(!ay_window_should_close(ptWindow)) 
     {
+        PROFILE_START(FrameOverHead);
         #ifdef AY_RASTERIZE_PROFILE_ENABLED 
         if(g_raster_profiler.uCurrentFrame >= 120) break;
         #endif
@@ -76,31 +77,29 @@ int main()
             iFrameCount = 0;
             dLastFPSTime = dCurrentTime;
         }
-        
         fRotation += fDeltaTime;
-        
-        PROFILE_START(FrameTime);
         
         ayMat4 rotation = ay_mat4_rotate_y(fRotation);
         ayMat4 translation = ay_mat4_translate(0.0f, 0.0f, -3.0f);
         ayMat4 model = ay_mat4_multiply(translation, rotation);
         ayMat4 mvp = ay_mat4_multiply(projection, model);
         
-        PROFILE_START(ClearFrame);
+        
         ay_clear_frame_buffer(ptFrameBuffer);
-        PROFILE_END(ClearFrame);
         
         ay_bind_frame_buffer(ptData, ptFrameBuffer);
         ay_bind_vertex_buffer(ptData, vertices);
         ay_bind_index_buffer(ptData, indices);
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &mvp);
         ay_bind_pipeline(ptData, &tPipeline);
+        PROFILE_END(FrameOverHead);
         
+        PROFILE_START(DrawCall);
         ay_draw_indexed(ptData, 0, num_indices);
-        
+        PROFILE_END(DrawCall);
+
         ay_present_frame(ptWindow, ptFrameBuffer);
         
-        PROFILE_END(FrameTime);
         #ifdef AY_RASTERIZE_PROFILE_ENABLED 
         g_raster_profiler.uCurrentFrame++;
         #endif
@@ -110,12 +109,13 @@ int main()
     printf("\n=== Profiler Results ===\n");
     for(uint32_t i = 0; i < 120; i++) 
     {
-        printf("FT:%.2lf - PL:%.2lf - Vary:%.2lf - DT:%.2lf - FS:%.2lf\n",
-            g_raster_profiler.dFrameTime[i],
+        printf("DC:%.2lf - PL:%.2lf - Vary:%.2lf - DT:%.2lf - FS:%.2lf - FOH:%.2lf\n",
+            g_raster_profiler.dDrawCall[i],
             g_raster_profiler.dPixelLoop[i],
             g_raster_profiler.dVaryingSystem[i],
             g_raster_profiler.dDepthTest[i],
-            g_raster_profiler.dFragmentShader[i]);
+            g_raster_profiler.dFragmentShader[i],
+            g_raster_profiler.dFrameOverHead[i]);
     }
     #endif
     

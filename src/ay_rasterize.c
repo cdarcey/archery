@@ -284,10 +284,10 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
         ay_compute_edge_coeffs(tVertex1, tVertex2, &BCa, &BCb, &BCc);
         ay_compute_edge_coeffs(tVertex2, tVertex0, &CAa, &CAb, &CAc);
 
-        // Initialize at start of row
-        float ABP = ABa * minX + ABb * minY + ABc;
-        float BCP = BCa * minX + BCb * minY + BCc;
-        float CAP = CAa * minX + CAb * minY + CAc;
+        // initialize at start of row
+        float ABP = (ABa * minX + ABb * minY + ABc) * fWindingSign;
+        float BCP = (BCa * minX + BCb * minY + BCc) * fWindingSign;
+        float CAP = (CAa * minX + CAb * minY + CAc) * fWindingSign;
 
         const float invABC = 1.0f / ABC;
 
@@ -299,9 +299,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 
             for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
             {
-                if((rowABP * fWindingSign) >= 0 && 
-                   (rowBCP * fWindingSign) >= 0 && 
-                   (rowCAP * fWindingSign) >= 0)
+                if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
                 {
                     const float weightA = rowBCP * invABC;
                     const float weightB = rowCAP * invABC;
@@ -403,9 +401,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     // set winding sign (CW need negative, CCW needs positive barycentric coords)
     float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? -1.0f : 1.0f;
 
-    // calculate frame buffer size
+    // calculate frame buffer size cache pointer to depth buffer
     const uint32_t fbWidth = ptData->ptFrameBufferData->uWidth;
     const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
+    float* pfDepthBuffer = ptData->ptFrameBufferData->pfDepthBuffer;
 
     // main triangle loop
     ayVec2 vertexP = {.x = 0, .y = 0};
@@ -454,10 +453,19 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         ay_compute_edge_coeffs(tVertex1, tVertex2, &BCa, &BCb, &BCc);
         ay_compute_edge_coeffs(tVertex2, tVertex0, &CAa, &CAb, &CAc);
 
+        // apply winding sign to coefficients
+        ABa *= fWindingSign;
+        BCa *= fWindingSign;
+        CAa *= fWindingSign;
+
+        ABb *= fWindingSign;
+        BCb *= fWindingSign;
+        CAb *= fWindingSign;
+
         // initialize at start of row
-        float ABP = ABa * minX + ABb * minY + ABc;
-        float BCP = BCa * minX + BCb * minY + BCc;
-        float CAP = CAa * minX + CAb * minY + CAc;
+        float ABP = (ABa * minX + ABb * minY + ABc) * fWindingSign;
+        float BCP = (BCa * minX + BCb * minY + BCc) * fWindingSign;
+        float CAP = (CAa * minX + CAb * minY + CAc) * fWindingSign;
 
         // precompute inverse triangle area (1/area so we can multiply instead of divide (faster))
         const float invABC = 1.0f / ABC;
@@ -490,22 +498,32 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         }
         PROFILE_END(VaryingSystem);
 
+        // init depth index
+        uint32_t uDepthIndex = minY * fbWidth + minX;
+
         // pixel loop
         PROFILE_START(PixelLoop);
         if(ptData->ptFrameBufferData->bDepthEnabled)
         {
-            for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
+            for(uint32_t y = minY; y <= maxY; y++)
             {
+                uint32_t uRowDepthIndex = uDepthIndex; // copy depth index for rows 
                 float rowABP = ABP;
                 float rowBCP = BCP;
                 float rowCAP = CAP;
 
-                for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
+                for(uint32_t x = minX; x <= maxX; x++)
                 {
-                    if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
+                    if(rowABP>= 0 && rowBCP >= 0 && rowCAP >= 0)
                     {
-                        iVaryDataOffset = 0; // reset offset for every new pixel
+                        // update vertex p
+                        vertexP.x = (float)x;
+                        vertexP.y = (float)y;
 
+                        // reset offset for every new pixel
+                        iVaryDataOffset = 0; 
+
+                        // calculate weights
                         const float weightA = rowBCP * invABC;
                         const float weightB = rowCAP * invABC;
                         const float weightC = rowABP * invABC;
@@ -535,10 +553,10 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         // depth checking and setting pixel/depth buffer
                         PROFILE_START(DepthTest);
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
-                        int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
+                        float fCurrentDepth = pfDepthBuffer[uRowDepthIndex];
                         PROFILE_END(DepthTest);
 
-                        if(fPixelDepth > ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
+                        if(fPixelDepth > fCurrentDepth) 
                         {
                             PROFILE_START(FragmentShader);
                             ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
@@ -549,31 +567,35 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             PROFILE_END(FragmentShader);
                             
                             ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
-                            ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex] = fPixelDepth;
+                            pfDepthBuffer[uRowDepthIndex] = fPixelDepth;
                         }
                     }
                     // incrementally update edge functions for next pixel in row
                     rowABP += ABa;
                     rowBCP += BCa;
                     rowCAP += CAa;
+                    // increment depth index for next pixel
+                    uRowDepthIndex += 1; 
                 }
                 // incrementally update edge functions for next row
                 ABP += ABb;
                 BCP += BCb;
                 CAP += CAb;
+                // increment depth index for next row
+                uDepthIndex += fbWidth; 
             }
         } 
         else
         {
-            for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
+            for(uint32_t y = minY; y <= maxY; y++)
             {
                 float rowABP = ABP;
                 float rowBCP = BCP;
                 float rowCAP = CAP;
 
-                for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
+                for(uint32_t x = minX; x <= maxX; x++)
                 {
-                    if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
+                    if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
                     {
                         iVaryDataOffset = 0; // reset offset for every new pixel
 
@@ -623,7 +645,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                 BCP += BCb;
                 CAP += CAb;
             }
-        }
+        } 
         PROFILE_END(PixelLoop);
     }
 }

@@ -8,8 +8,8 @@
 
 typedef struct _ayDrawIndProfiler
 {
-    double   dFrameTime[DRAW_IND_SAMPLES];
-    double   dClearFrame[DRAW_IND_SAMPLES];
+    double   dDrawCall[DRAW_IND_SAMPLES];
+    double   dFrameOverHead[DRAW_IND_SAMPLES];
     double   dVertexShader[DRAW_IND_SAMPLES];
     double   dTriangleSetup[DRAW_IND_SAMPLES];
     double   dPixelLoop[DRAW_IND_SAMPLES];
