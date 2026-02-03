@@ -316,7 +316,10 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
                     ayVaryingData blendedVaryingData = {0};
 
                     for(uint32_t j = 0; j < 16; j++)
+                    {
                         blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
+                        blendedVaryingData.atTypes[j] = tVaryingData0.atTypes[j];
+                    }
 
                     int iVaryingCount = 0;
                     for(int varyIndex = 0; varyIndex < 16; varyIndex++)
@@ -397,47 +400,47 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 void
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
-    // set winding sign
-    float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? 1.0f : -1.0f;
+    // set winding sign (CW need negative, CCW needs positive barycentric coords)
+    float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? -1.0f : 1.0f;
 
     // calculate frame buffer size
     const uint32_t fbWidth = ptData->ptFrameBufferData->uWidth;
     const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
 
+    // main triangle loop
     ayVec2 vertexP = {.x = 0, .y = 0};
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
+        PROFILE_START(VertexShader);
         const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
-        // type casting void buffer
+        // type casting void buffer & defining varying data to get out of vertex shader
         const char* pcVtxBuffer = (char*)ptData->pVerticies;
-
-        // defining varying data
         ayVaryingData tVaryingData0 = {0};
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
 
         // vertex shader stage
-        #ifdef AY_DRAW_PROFILER_IMPLEMENTATION
-        double dStartVertStage = glfwGetTime();
-        #endif
         ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
         ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
         ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
-        #ifdef AY_DRAW_PROFILER_IMPLEMENTATION
-        double dEndVertStage = glfwGetTime();
-        ay_profile_vertex_stage((dEndVertStage - dStartVertStage) * 1000);
-        #endif
+        PROFILE_END(VertexShader);
 
         // frame buffer space transformation
+        PROFILE_START(TriangleSetup);
         ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
         ay_ndc_to_screen(&tVertex1, fbWidth, fbHeight);
         ay_ndc_to_screen(&tVertex2, fbWidth, fbHeight);
 
         // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
+
+        // cull backfaces based on winding
+        if(ABC > 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) continue;
+        if(ABC < 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_COUNTER_CLOCKWISE) continue;
+        if(ABC == 0) continue;  // degenerate triangle
 
         // bounding box with clamping
         const uint32_t minX = ay_max(0, ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) - 1);
@@ -456,107 +459,170 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         float BCP = BCa * minX + BCb * minY + BCc;
         float CAP = CAa * minX + CAb * minY + CAc;
 
+        // precompute inverse triangle area (1/area so we can multiply instead of divide (faster))
         const float invABC = 1.0f / ABC;
+        PROFILE_END(TriangleSetup);
 
+        PROFILE_START(VaryingSystem);
+        // varying system
+        int iVaryDataOffset = 0;
+        ayVaryingData blendedVaryingData = {0};
 
-        PROFILE_START(PixelLoop);
-        for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
+        int iVaryingCount = 0;
+        for(uint32_t j = 0; j < 16; j++)
         {
-            float rowABP = ABP;
-            float rowBCP = BCP;
-            float rowCAP = CAP;
+            blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
+            blendedVaryingData.atTypes[j] = tVaryingData0.atTypes[j];
+            if(tVaryingData0.atTypes[j] == AY_VARYING_TYPE_NONE)
+                break;
+            iVaryingCount++;
+        }
 
-            for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
+        int iCompCount[16] = {0};
+        for(uint32_t k = 0; k < iVaryingCount; k++)
+        {
+            ayVaryingType type = tVaryingData0.atTypes[k];
+
+            if    (type == AY_VARYING_TYPE_FLOAT) iCompCount[k] = 1;
+            else if(type == AY_VARYING_TYPE_VEC2) iCompCount[k] = 2;
+            else if(type == AY_VARYING_TYPE_VEC3) iCompCount[k] = 3;
+            else if(type == AY_VARYING_TYPE_VEC4) iCompCount[k] = 4;
+        }
+        PROFILE_END(VaryingSystem);
+
+        // pixel loop
+        PROFILE_START(PixelLoop);
+        if(ptData->ptFrameBufferData->bDepthEnabled)
+        {
+            for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
             {
-                if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
+                float rowABP = ABP;
+                float rowBCP = BCP;
+                float rowCAP = CAP;
+
+                for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
                 {
-                    const float weightA = rowBCP * invABC;
-                    const float weightB = rowCAP * invABC;
-                    const float weightC = rowABP * invABC;
+                    if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
+                    {
+                        iVaryDataOffset = 0; // reset offset for every new pixel
 
-                    ayPixelShaderBuiltIns tBuiltIns = {
-                        .tUV = {vertexP.x, vertexP.y}
-                    };
+                        const float weightA = rowBCP * invABC;
+                        const float weightB = rowCAP * invABC;
+                        const float weightC = rowABP * invABC;
+
+                        ayPixelShaderBuiltIns tBuiltIns = {
+                            .tUV = {vertexP.x, vertexP.y}
+                        };
                     
-                    // varying system
-                    int iVaryDataOffset = 0;
-                    ayVaryingData blendedVaryingData = {0};
-
-                    for(uint32_t j = 0; j < 16; j++)
-                        blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
-
-                    int iVaryingCount = 0;
-                    for(int varyIndex = 0; varyIndex < 16; varyIndex++)
-                    {
-                        if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_NONE)
-                            break;
-                        iVaryingCount++;
-                    }
-
-                    for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
-                    {
-                        ayVaryingType type = tVaryingData0.atTypes[varyIndex];
-                        int componentCount = 0;
-
-                        if(type == AY_VARYING_TYPE_FLOAT) componentCount = 1;
-                        else if(type == AY_VARYING_TYPE_VEC2) componentCount = 2;
-                        else if(type == AY_VARYING_TYPE_VEC3) componentCount = 3;
-                        else if(type == AY_VARYING_TYPE_VEC4) componentCount = 4;
-
-                        if(componentCount > 0)
+                        for(int iVaryIndex = 0; iVaryIndex < iVaryingCount; iVaryIndex++)
                         {
-                            const float* v0 = (const float*)&tVaryingData0.acVaryingData[iVaryDataOffset];
-                            const float* v1 = (const float*)&tVaryingData1.acVaryingData[iVaryDataOffset];
-                            const float* v2 = (const float*)&tVaryingData2.acVaryingData[iVaryDataOffset];
-                            float* dest = (float*)&blendedVaryingData.acVaryingData[iVaryDataOffset];
-
-                            for(int c = 0; c < componentCount; c++)
+                            int iCurrentCompCount = iCompCount[iVaryIndex];
+                            if(iCurrentCompCount > 0)
                             {
-                                dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
+                                const float* v0 = (const float*)&tVaryingData0.acVaryingData[iVaryDataOffset];
+                                const float* v1 = (const float*)&tVaryingData1.acVaryingData[iVaryDataOffset];
+                                const float* v2 = (const float*)&tVaryingData2.acVaryingData[iVaryDataOffset];
+                                float* dest = (float*)&blendedVaryingData.acVaryingData[iVaryDataOffset];
+
+                                for(int c = 0; c < iCurrentCompCount; c++)
+                                {
+                                    dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
+                                }
+                                iVaryDataOffset += iCurrentCompCount * sizeof(float);
                             }
-                            iVaryDataOffset += componentCount * sizeof(float);
                         }
-                    }
-                    
-                    if(ptData->ptFrameBufferData->bDepthEnabled)
-                    {
-                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;;
+
+                        // depth checking and setting pixel/depth buffer
+                        PROFILE_START(DepthTest);
+                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
                         int iDepthIndex = (int)vertexP.y * fbWidth + (int)vertexP.x;
+                        PROFILE_END(DepthTest);
 
                         if(fPixelDepth > ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex]) 
                         {
-                            // run pixel shader
+                            PROFILE_START(FragmentShader);
                             ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                             float alphaScale = tFinalColor.a / 255.0f;
                             tFinalColor.r *= alphaScale;
                             tFinalColor.g *= alphaScale;
                             tFinalColor.b *= alphaScale;
+                            PROFILE_END(FragmentShader);
+                            
                             ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
-
-                            // update depth buffer
                             ptData->ptFrameBufferData->pfDepthBuffer[iDepthIndex] = fPixelDepth;
                         }
                     }
-                    else
+                    // incrementally update edge functions for next pixel in row
+                    rowABP += ABa;
+                    rowBCP += BCa;
+                    rowCAP += CAa;
+                }
+                // incrementally update edge functions for next row
+                ABP += ABb;
+                BCP += BCb;
+                CAP += CAb;
+            }
+        } 
+        else
+        {
+            for(vertexP.y = (float)minY; vertexP.y <= (float)maxY; vertexP.y++)
+            {
+                float rowABP = ABP;
+                float rowBCP = BCP;
+                float rowCAP = CAP;
+
+                for(vertexP.x = (float)minX; vertexP.x <= (float)maxX; vertexP.x++)
+                {
+                    if((rowABP * fWindingSign) >= 0 && (rowBCP * fWindingSign) >= 0 && (rowCAP * fWindingSign) >= 0)
                     {
-                        // no depth
+                        iVaryDataOffset = 0; // reset offset for every new pixel
+
+                        const float weightA = rowBCP * invABC;
+                        const float weightB = rowCAP * invABC;
+                        const float weightC = rowABP * invABC;
+
+                        ayPixelShaderBuiltIns tBuiltIns = {
+                            .tUV = {vertexP.x, vertexP.y}
+                        };
+                    
+                        for(int iVaryIndex = 0; iVaryIndex < iVaryingCount; iVaryIndex++)
+                        {
+                            int iCurrentCompCount = iCompCount[iVaryIndex];
+                            if(iCurrentCompCount > 0)
+                            {
+                                const float* v0 = (const float*)&tVaryingData0.acVaryingData[iVaryDataOffset];
+                                const float* v1 = (const float*)&tVaryingData1.acVaryingData[iVaryDataOffset];
+                                const float* v2 = (const float*)&tVaryingData2.acVaryingData[iVaryDataOffset];
+                                float* dest = (float*)&blendedVaryingData.acVaryingData[iVaryDataOffset];
+
+                                for(int c = 0; c < iCurrentCompCount; c++)
+                                {
+                                    dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
+                                }
+                                iVaryDataOffset += iCurrentCompCount * sizeof(float);
+                            }
+                        }
+
+                        PROFILE_START(FragmentShader);
                         ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
                         float alphaScale = tFinalColor.a / 255.0f;
                         tFinalColor.r *= alphaScale;
                         tFinalColor.g *= alphaScale;
                         tFinalColor.b *= alphaScale;
+                        PROFILE_END(FragmentShader);
+                            
                         ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
                     }
+                    // incrementally update edge functions for next pixel in row
+                    rowABP += ABa;
+                    rowBCP += BCa;
+                    rowCAP += CAa;
                 }
-                // incrementally update edge functions for next pixel in row
-                rowABP += ABa;
-                rowBCP += BCa;
-                rowCAP += CAa;
+                // incrementally update edge functions for next row
+                ABP += ABb;
+                BCP += BCb;
+                CAP += CAb;
             }
-            // incrementally update edge functions for next row
-            ABP += ABb;
-            BCP += BCb;
-            CAP += CAb;
         }
         PROFILE_END(PixelLoop);
     }

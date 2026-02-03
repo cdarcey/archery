@@ -1,6 +1,7 @@
 #ifndef AY_RASTERIZE_PROFILE_H
 #define AY_RASTERIZE_PROFILE_H
 
+
 #include <glfw3.h>
 
 #define DRAW_IND_SAMPLES 120
@@ -12,6 +13,10 @@ typedef struct _ayDrawIndProfiler
     double   dVertexShader[DRAW_IND_SAMPLES];
     double   dTriangleSetup[DRAW_IND_SAMPLES];
     double   dPixelLoop[DRAW_IND_SAMPLES];
+    double   dVaryingSystem[DRAW_IND_SAMPLES];
+    double   dDepthTest[DRAW_IND_SAMPLES];
+    double   dFragmentShader[DRAW_IND_SAMPLES];
+    double   dLoopOverhead[DRAW_IND_SAMPLES];
     uint32_t uCurrentFrame;
 } ayDrawIndProfiler;
 

@@ -73,7 +73,7 @@ typedef struct _ayGraphicsData ayGraphicsData;    // opaque
 
 typedef struct ayWindow {
     GLFWwindow* pWindow;
-    GLuint      uframebufferTexture;      // gl texture id for framebuffer
+    GLuint      uframebufferTexture; // gl texture id for framebuffer
     uint32_t    uWidth;
     uint32_t    uHeight;
 } ayWindow;
@@ -83,7 +83,7 @@ typedef struct _ayFrameBufferData
     uint32_t       uWidth;
     uint32_t       uHeight;
     unsigned char* pucData;
-    float*         pfDepthBuffer; // reverse 0 is far
+    float*         pfDepthBuffer; // reverse,0 is far
     bool           bDepthEnabled;
 } ayFrameBufferData;
 

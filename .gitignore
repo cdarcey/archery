@@ -4,3 +4,4 @@ out/
 
 # debug files
 src/*.pdb
+src/*.md
