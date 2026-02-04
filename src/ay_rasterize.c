@@ -20,6 +20,7 @@ Index of this file:
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <stdbool.h>
 
 
 #include "ay_rasterize.h"
@@ -37,6 +38,20 @@ ayDrawIndProfiler g_raster_profiler = {0};
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
+
+typedef struct _ayTileRenderer
+{
+    uint32_t uTileSize;          // 32x32
+    uint32_t uTilesX;            // 40
+    uint32_t uTilesY;            // 23
+    uint32_t uTotalTiles;        // 920
+    uint32_t uFrameBufferWidth;  // 1280
+    uint32_t uFrameBufferHeight; // 720
+    
+    // Phase 3: Threading state
+    // uint32_t uNextTileIndex; 
+    
+} ayTileRenderer;
 
 typedef struct _ayGraphicsData
 {
@@ -117,6 +132,32 @@ ay_blend_varying_component(float* dest, const float* v0, const float* v1, const 
 
 static void 
 ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
+
+ayTileRenderer 
+ay_init_tile_renderer(uint32_t uFrameBufferWidth, uint32_t uFrameBufferHeight)
+{
+    ayTileRenderer renderer;
+    renderer.uFrameBufferWidth = uFrameBufferWidth;
+    renderer.uFrameBufferHeight = uFrameBufferHeight;
+    renderer.uTileSize = 32;
+    renderer.uTilesX = (uFrameBufferWidth + renderer.uTileSize - 1) / renderer.uTileSize;
+    renderer.uTilesY = (uFrameBufferHeight + renderer.uTileSize - 1) / renderer.uTileSize;
+    renderer.uTotalTiles = renderer.uTilesX * renderer.uTilesY;
+    return renderer;
+}
+
+void
+ay_get_tile_bounds(ayTileRenderer* ptRenderer, uint32_t uTileIndex, uint32_t* uOutMinX, uint32_t* uOutMinY, 
+                                                                    uint32_t* uOutMaxX, uint32_t* uOutMaxY)
+{
+    uint32_t uX = uTileIndex % ptRenderer->uTilesX;
+    uint32_t uY = uTileIndex / ptRenderer->uTilesY;
+
+    *uOutMinX = uX * ptRenderer->uTileSize;
+    *uOutMinY = uY * ptRenderer->uTileSize;
+    *uOutMaxX = min(*uOutMinX + ptRenderer->uTileSize, ptRenderer->uFrameBufferWidth);
+    *uOutMaxY = min(*uOutMinY + ptRenderer->uTileSize, ptRenderer->uFrameBufferHeight);
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] public api implementation
@@ -234,8 +275,31 @@ ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType e
 }
 
 void
+ay_render_tile_local(ayGraphicsData ptDataCopy, uint8_t* auLocalFB, float* afLocalDB,
+                     uint32_t uMaxX, uint32_t uMaxY, uint32_t uMinX, uint32_t uMinY)
+{
+    ptDataCopy.ptFrameBufferData->pucData = auLocalFB;
+    ptDataCopy.ptFrameBufferData->pfDepthBuffer = afLocalDB;
+    ptDataCopy.ptFrameBufferData->uWidth = uMaxX - uMinX;
+    ptDataCopy.ptFrameBufferData->uHeight = uMaxY - uMinY;
+
+    // modify ptDatacopy with local tile ay_get_tile_bounds
+
+    ay_draw_indexed(&ptDataCopy, 0, 3)
+
+    // eventually find a way to bin triangles which creates tiel specific index and vertex buffer to put in ptDataCopy
+}
+
+void
+ay_add_tile_to_frame(uint32_t uTileIndex, ayFrameBufferData* tMainFB, uint8_t* uLocalFB)
+{
+
+}
+
+void
 ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 {
+    // TODO: add indexed draw flow with optimizations
     // set winding sign
     float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? 1.0f : -1.0f;
 
@@ -649,6 +713,28 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         PROFILE_END(PixelLoop);
     }
 }
+
+void
+ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+{
+    ayTileRenderer tRenderer = ay_init_tile_renderer(ptData->ptFrameBufferData->uWidth, ptData->ptFrameBufferData->uHeight);
+
+    uint8_t auLocalFB[32 * 32 * 4]; // TODO: move all "usigned char" pixel data to uint8_t in main renderer
+    float   afLocalDB[32 * 32];
+    memset(auLocalFB, 0, sizeof(auLocalFB));
+    memset(afLocalDB, 0, sizeof(afLocalDB));
+
+    for(uint32_t uTileInd = 0; uTileInd < tRenderer.uTotalTiles; uTileInd++)
+    {
+        uint32_t uMaxX, uMaxY, uMinX, uMinY;
+        ay_get_tile_bounds(&tRenderer, uTileInd, &uMaxX, &uMaxY, &uMinX, uMinY);
+
+        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uMaxX, uMaxY, uMinX, uMinY);
+        ay_add_tile_to_frame();
+    }
+
+}
+
 
 const void*
 ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation)
