@@ -60,6 +60,16 @@ typedef struct _ayGraphicsData
     ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
     ayDescriptor       tDescriptors[16]; 
+
+    // store for tile based rendering
+    uint32_t           uScreenWidth;
+    uint32_t           uScreenHeight;
+
+    // tile rendering info (0 means full screen rendering)
+    uint32_t           uTileMinX;
+    uint32_t           uTileMinY;
+    uint32_t           uTileMaxX;
+    uint32_t           uTileMaxY;
 } ayGraphicsData;
 
 //-----------------------------------------------------------------------------
@@ -146,17 +156,16 @@ ay_init_tile_renderer(uint32_t uFrameBufferWidth, uint32_t uFrameBufferHeight)
     return renderer;
 }
 
-void
-ay_get_tile_bounds(ayTileRenderer* ptRenderer, uint32_t uTileIndex, uint32_t* uOutMinX, uint32_t* uOutMinY, 
-                                                                    uint32_t* uOutMaxX, uint32_t* uOutMaxY)
+void 
+ay_get_tile_bounds(ayTileRenderer* ptRenderer, uint32_t uTileIndex, uint32_t* puMinX, uint32_t* puMinY, uint32_t* puMaxX, uint32_t* puMaxY)
 {
     uint32_t uX = uTileIndex % ptRenderer->uTilesX;
-    uint32_t uY = uTileIndex / ptRenderer->uTilesY;
-
-    *uOutMinX = uX * ptRenderer->uTileSize;
-    *uOutMinY = uY * ptRenderer->uTileSize;
-    *uOutMaxX = min(*uOutMinX + ptRenderer->uTileSize, ptRenderer->uFrameBufferWidth);
-    *uOutMaxY = min(*uOutMinY + ptRenderer->uTileSize, ptRenderer->uFrameBufferHeight);
+    uint32_t uY = uTileIndex / ptRenderer->uTilesX;
+    
+    *puMinX = uX * ptRenderer->uTileSize;
+    *puMinY = uY * ptRenderer->uTileSize;
+    *puMaxX = min(*puMinX + ptRenderer->uTileSize, ptRenderer->uFrameBufferWidth);
+    *puMaxY = min(*puMinY + ptRenderer->uTileSize, ptRenderer->uFrameBufferHeight);
 }
 
 //-----------------------------------------------------------------------------
@@ -164,10 +173,14 @@ ay_get_tile_bounds(ayTileRenderer* ptRenderer, uint32_t uTileIndex, uint32_t* uO
 //-----------------------------------------------------------------------------
 
 ayGraphicsData*
-initialize_graphics(void)
+initialize_graphics(uint32_t uScreenWidth, uint32_t uScreenHeight)
 {
     ayGraphicsData* ptData = malloc(sizeof(ayGraphicsData));
+    if(!ptData) return NULL;
     memset(ptData, 0, sizeof(ayGraphicsData));
+
+    ptData->uScreenWidth = uScreenWidth;
+    ptData->uScreenHeight = uScreenHeight;
 
     return ptData;
 }
@@ -275,25 +288,42 @@ ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType e
 }
 
 void
-ay_render_tile_local(ayGraphicsData ptDataCopy, uint8_t* auLocalFB, float* afLocalDB,
-                     uint32_t uMaxX, uint32_t uMaxY, uint32_t uMinX, uint32_t uMinY)
+ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLocalDB, uint32_t uTileIndex, 
+    uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY)
 {
-    ptDataCopy.ptFrameBufferData->pucData = auLocalFB;
-    ptDataCopy.ptFrameBufferData->pfDepthBuffer = afLocalDB;
-    ptDataCopy.ptFrameBufferData->uWidth = uMaxX - uMinX;
-    ptDataCopy.ptFrameBufferData->uHeight = uMaxY - uMinY;
+    ayFrameBufferData tTileData = {0};
+    tTileData.bDepthEnabled = tDataCopy.ptFrameBufferData->bDepthEnabled;
+    tTileData.pucData = (unsigned char*)auLocalFB;
+    tTileData.pfDepthBuffer = afLocalDB;
+    tTileData.uHeight = uMaxY - uMinY;
+    tTileData.uWidth = uMaxX - uMinX;
 
-    // modify ptDatacopy with local tile ay_get_tile_bounds
+    tDataCopy.ptFrameBufferData = &tTileData;
+    tDataCopy.uTileMinX = uMinX;
+    tDataCopy.uTileMinY = uMinY;
+    tDataCopy.uTileMaxX = uMaxX;
+    tDataCopy.uTileMaxY = uMaxY;
 
-    ay_draw_indexed(&ptDataCopy, 0, 3)
-
-    // eventually find a way to bin triangles which creates tiel specific index and vertex buffer to put in ptDataCopy
+    ay_draw_indexed(&tDataCopy, 0, 6);
+    // eventually find a way to bin triangles which creates tile specific index and vertex buffer to put in ptDataCopy
 }
 
-void
-ay_add_tile_to_frame(uint32_t uTileIndex, ayFrameBufferData* tMainFB, uint8_t* uLocalFB)
+void 
+ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMinX, uint32_t uMinY,
+    uint32_t uMaxX, uint32_t uMaxY)
 {
-
+    uint32_t uTileWidth = uMaxX - uMinX;
+    uint32_t uTileHeight = uMaxY - uMinY;
+    
+    // copy row by row
+    for(uint32_t i = 0; i < uTileHeight; i++) 
+    {
+        
+        uint32_t uSrcOffset = i * uTileWidth * 4;  // local FB is tileWidth wide
+        uint32_t uDstOffset = ((uMinY + i) * tMainFB->uWidth + uMinX) * 4;
+        
+        memcpy(&tMainFB->pucData[uDstOffset], &uLocalFB[uSrcOffset], uTileWidth * 4);
+    }
 }
 
 void
@@ -462,6 +492,8 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 void
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
+    bool bTiledRendering = (ptData->uTileMaxX > 0); // check if tilerendering or full frame
+
     // set winding sign (CW need negative, CCW needs positive barycentric coords)
     float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? -1.0f : 1.0f;
 
@@ -471,7 +503,6 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     float* pfDepthBuffer = ptData->ptFrameBufferData->pfDepthBuffer;
 
     // main triangle loop
-    ayVec2 vertexP = {.x = 0, .y = 0};
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
         PROFILE_START(VertexShader);
@@ -493,9 +524,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 
         // frame buffer space transformation
         PROFILE_START(TriangleSetup);
-        ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
-        ay_ndc_to_screen(&tVertex1, fbWidth, fbHeight);
-        ay_ndc_to_screen(&tVertex2, fbWidth, fbHeight);
+        ay_ndc_to_screen(&tVertex0, ptData->uScreenWidth, ptData->uScreenHeight);
+        ay_ndc_to_screen(&tVertex1, ptData->uScreenWidth, ptData->uScreenHeight);
+        ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
 
         // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
@@ -505,11 +536,40 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         if(ABC < 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_COUNTER_CLOCKWISE) continue;
         if(ABC == 0) continue;  // degenerate triangle
 
-        // bounding box with clamping
-        const uint32_t minX = ay_max(0, ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) - 1);
-        const uint32_t minY = ay_max(0, ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) - 1);
-        const uint32_t maxX = ay_min(fbWidth-1, ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x) + 1);
-        const uint32_t maxY = ay_min(fbHeight-1, ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y) + 1);
+        // get triangle bounding box
+        uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
+        uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
+        uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
+        uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
+        
+        // expand triangle bounds by 1 pix to ensure we dont miss data
+        if(uTriMinX > 0) uTriMinX -= 1;
+        if(uTriMinY > 0) uTriMinY -= 1;
+        uTriMaxX += 1;
+        uTriMaxY += 1;
+
+        // clamp to screen bounds
+        uTriMinX = ay_max(0, uTriMinX);
+        uTriMinY = ay_max(0, uTriMinY);
+        uTriMaxX = ay_min(ptData->uScreenWidth, uTriMaxX);
+        uTriMaxY = ay_min(ptData->uScreenHeight, uTriMaxY);
+
+        // if tiled rendering, clamp to tile bounds
+        if(bTiledRendering) 
+        {
+            uTriMinX = ay_max(ptData->uTileMinX, uTriMinX);
+            uTriMinY = ay_max(ptData->uTileMinY, uTriMinY);
+            uTriMaxX = ay_min(ptData->uTileMaxX, uTriMaxX);
+            uTriMaxY = ay_min(ptData->uTileMaxY, uTriMaxY);
+            
+            // early out if triangle doesn't overlap tile at all
+            if(uTriMinX >= uTriMaxX || uTriMinY >= uTriMaxY) continue;
+        }
+
+        const uint32_t minX = uTriMinX;
+        const uint32_t minY = uTriMinY;
+        const uint32_t maxX = uTriMaxX;
+        const uint32_t maxY = uTriMaxY;
 
         // precompute edge function coefficients
         float ABa, ABb, ABc, BCa, BCb, BCc, CAa, CAb, CAc;
@@ -562,27 +622,36 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         }
         PROFILE_END(VaryingSystem);
 
-        // init depth index
-        uint32_t uDepthIndex = minY * fbWidth + minX;
+        // depth index for tiled or non tiled
+        uint32_t uDepthIndex;
+        if(bTiledRendering) 
+        {
+            uDepthIndex = 0;  // start at beginning of tile buffer
+        } 
+        else 
+        {
+            uDepthIndex = minY * fbWidth + minX;
+        }
 
         // pixel loop
         PROFILE_START(PixelLoop);
         if(ptData->ptFrameBufferData->bDepthEnabled)
         {
-            for(uint32_t y = minY; y <= maxY; y++)
+            for(uint32_t y = minY; y < maxY; y++)
             {
                 uint32_t uRowDepthIndex = uDepthIndex; // copy depth index for rows 
                 float rowABP = ABP;
                 float rowBCP = BCP;
                 float rowCAP = CAP;
 
-                for(uint32_t x = minX; x <= maxX; x++)
+                for(uint32_t x = minX; x < maxX; x++)
                 {
                     if(rowABP>= 0 && rowBCP >= 0 && rowCAP >= 0)
                     {
-                        // update vertex p
-                        vertexP.x = (float)x;
-                        vertexP.y = (float)y;
+                        // for tiled or not tiled drawing
+                        uint32_t uLocalX = x - ptData->uTileMinX;
+                        uint32_t uLocalY = y - ptData->uTileMinY;
+                        uint32_t uBufferDepthIndex = bTiledRendering ? (uLocalY * fbWidth + uLocalX) : uRowDepthIndex;
 
                         // reset offset for every new pixel
                         iVaryDataOffset = 0; 
@@ -593,7 +662,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         const float weightC = rowABP * invABC;
 
                         ayPixelShaderBuiltIns tBuiltIns = {
-                            .tUV = {vertexP.x, vertexP.y}
+                            .tUV = {x, y}
                         };
                     
                         for(int iVaryIndex = 0; iVaryIndex < iVaryingCount; iVaryIndex++)
@@ -617,7 +686,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         // depth checking and setting pixel/depth buffer
                         PROFILE_START(DepthTest);
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
-                        float fCurrentDepth = pfDepthBuffer[uRowDepthIndex];
+                        float fCurrentDepth = pfDepthBuffer[uBufferDepthIndex];
                         PROFILE_END(DepthTest);
 
                         if(fPixelDepth > fCurrentDepth) 
@@ -630,8 +699,8 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                             tFinalColor.b *= alphaScale;
                             PROFILE_END(FragmentShader);
                             
-                            ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
-                            pfDepthBuffer[uRowDepthIndex] = fPixelDepth;
+                            ay_set_pixel(ptData->ptFrameBufferData, (ayVec2){uLocalX, uLocalY}, tFinalColor);
+                            pfDepthBuffer[uBufferDepthIndex] = fPixelDepth;
                         }
                     }
                     // incrementally update edge functions for next pixel in row
@@ -661,6 +730,8 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                 {
                     if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
                     {
+                        uint32_t uLocalX = x - ptData->uTileMinX;
+                        uint32_t uLocalY = y - ptData->uTileMinY;
                         iVaryDataOffset = 0; // reset offset for every new pixel
 
                         const float weightA = rowBCP * invABC;
@@ -668,7 +739,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         const float weightC = rowABP * invABC;
 
                         ayPixelShaderBuiltIns tBuiltIns = {
-                            .tUV = {vertexP.x, vertexP.y}
+                            .tUV = {x, y}
                         };
                     
                         for(int iVaryIndex = 0; iVaryIndex < iVaryingCount; iVaryIndex++)
@@ -696,8 +767,9 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
                         tFinalColor.g *= alphaScale;
                         tFinalColor.b *= alphaScale;
                         PROFILE_END(FragmentShader);
-                            
-                        ay_set_pixel(ptData->ptFrameBufferData, vertexP, tFinalColor);
+
+                        ayVec2 tWritePos = bTiledRendering ? (ayVec2){uLocalX, uLocalY} : (ayVec2){x, y};
+                        ay_set_pixel(ptData->ptFrameBufferData, tWritePos, tFinalColor);
                     }
                     // incrementally update edge functions for next pixel in row
                     rowABP += ABa;
@@ -714,6 +786,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     }
 }
 
+
 void
 ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
@@ -721,20 +794,30 @@ ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIn
 
     uint8_t auLocalFB[32 * 32 * 4]; // TODO: move all "usigned char" pixel data to uint8_t in main renderer
     float   afLocalDB[32 * 32];
-    memset(auLocalFB, 0, sizeof(auLocalFB));
-    memset(afLocalDB, 0, sizeof(afLocalDB));
+
 
     for(uint32_t uTileInd = 0; uTileInd < tRenderer.uTotalTiles; uTileInd++)
     {
-        uint32_t uMaxX, uMaxY, uMinX, uMinY;
-        ay_get_tile_bounds(&tRenderer, uTileInd, &uMaxX, &uMaxY, &uMinX, uMinY);
 
-        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uMaxX, uMaxY, uMinX, uMinY);
-        ay_add_tile_to_frame();
+        memset(auLocalFB, 0, sizeof(auLocalFB));
+        memset(afLocalDB, 0, sizeof(afLocalDB));
+
+        uint32_t uMaxX, uMaxY, uMinX, uMinY;
+        ay_get_tile_bounds(&tRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
+
+        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, uMinX, uMinY, uMaxX, uMaxY);
+        
+        ay_add_tile_to_frame(ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+        
     }
 
 }
 
+void 
+ay_test_draw_tile(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+{
+    ay_draw_indexed_tiled(ptData, uFirstIndex, uIndexCount);
+}
 
 const void*
 ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation)

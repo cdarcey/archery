@@ -147,7 +147,7 @@ typedef struct _ayPipeline
 
 //-------------------------------setup-----------------------------------------
 
-ayGraphicsData* initialize_graphics(void);
+ayGraphicsData* initialize_graphics(uint32_t uScreenWidth, uint32_t uScreenHeight);
 
 // windowing & presenting
 ayWindow* ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle);
@@ -190,5 +190,8 @@ void ay_draw_indexed(ayGraphicsData*, uint32_t uFirstIndex, uint32_t uIndexCount
 void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut);
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
 const void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation);
+
+void 
+ay_test_draw_tile(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
 
 #endif

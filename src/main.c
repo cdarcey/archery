@@ -11,19 +11,17 @@ ayVec3 color_gradient_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void
 
 int main()
 {
-    // triangle with position (x, y, z) and color (r, g, b)
     float vertices[] = {
         // position          // color
-         0.0f,  0.5f, 0.5f,  1.0f, 0.0f, 0.0f,  // top: red
-        -0.5f, -0.5f, 0.5f,  0.0f, 1.0f, 0.0f,  // bottom left: green
-         0.5f, -0.5f, 0.5f,  0.0f, 0.0f, 1.0f   // bottom right: blue
+        -1.0f, -1.0f, 0.5f,  1.0f, 0.0f, 0.0f,  // top left - red
+         1.0f, -1.0f, 0.5f,  0.0f, 0.0f, 1.0f,  // top right blue
+        -1.0f,  1.0f, 0.5f,  0.0f, 1.0f, 0.0f,  // bottom left green
+         1.0f,  1.0f, 0.5f,  1.0f, 0.0f, 0.0f   // bottom right red
     };
     
-    uint32_t indices[] = {0, 1, 2};
+    uint32_t indices[] = {0, 1, 2, 2, 1, 3};
     
-    printf("RGB gradient triangle: 3 vertices, 1 triangle\n");
-    
-    ayGraphicsData* ptData = initialize_graphics();
+    ayGraphicsData* ptData = initialize_graphics(screenWidth, screenHeight);
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, true);
     ayWindow* ptWindow = ay_create_window(screenWidth, screenHeight, "RGB Triangle");
     
@@ -64,16 +62,18 @@ int main()
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &identity);
         ay_bind_pipeline(ptData, &tPipeline);
         
-        ay_draw_indexed_tiled(ptData, 0, 3);
-        
+        // ay_test_draw_tile(ptData, 0, 6);
+        ay_draw_indexed(ptData, 0, 6);
+
+        // ay_output_frame_buffer(ptFrameBuffer);
         ay_present_frame(ptWindow, ptFrameBuffer);
     }
     
-    ay_destroy_window(ptWindow);
-    free(ptFrameBuffer->pfDepthBuffer);
-    free(ptFrameBuffer->pucData);
-    free(ptFrameBuffer);
-    free(ptData);
+    // ay_destroy_window(ptWindow);
+    // free(ptFrameBuffer->pfDepthBuffer);
+    // free(ptFrameBuffer->pucData);
+    // free(ptFrameBuffer);
+    // free(ptData);
     
     return 0;
 }
