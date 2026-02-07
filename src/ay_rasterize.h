@@ -80,11 +80,11 @@ typedef struct ayWindow {
 
 typedef struct _ayFrameBufferData
 {
-    uint32_t       uWidth;
-    uint32_t       uHeight;
-    unsigned char* pucData;
-    float*         pfDepthBuffer; // reverse,0 is far
-    bool           bDepthEnabled;
+    uint32_t uWidth;
+    uint32_t uHeight;
+    uint8_t* auData;
+    float*   pfDepthBuffer; // reverse,0 is far
+    bool     bDepthEnabled;
 } ayFrameBufferData;
 
 typedef struct _ayTexture

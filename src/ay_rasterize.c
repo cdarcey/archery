@@ -53,6 +53,14 @@ typedef struct _ayTileRenderer
     
 } ayTileRenderer;
 
+typedef struct _ayTileBins
+{
+    uint32_t* uTriangleIndices;  // all triangle indices (flat array)
+    uint32_t* uCounts;           // triangles per tile 
+    uint32_t  uCapacity;         // max triangles per tile 
+    uint32_t  uTotalTiles;       // 920
+} ayTileBins;
+
 typedef struct _ayGraphicsData
 {
     ayFrameBufferData* ptFrameBufferData;
@@ -146,14 +154,15 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
 ayTileRenderer 
 ay_init_tile_renderer(uint32_t uFrameBufferWidth, uint32_t uFrameBufferHeight)
 {
-    ayTileRenderer renderer;
-    renderer.uFrameBufferWidth = uFrameBufferWidth;
-    renderer.uFrameBufferHeight = uFrameBufferHeight;
-    renderer.uTileSize = 32;
-    renderer.uTilesX = (uFrameBufferWidth + renderer.uTileSize - 1) / renderer.uTileSize;
-    renderer.uTilesY = (uFrameBufferHeight + renderer.uTileSize - 1) / renderer.uTileSize;
-    renderer.uTotalTiles = renderer.uTilesX * renderer.uTilesY;
-    return renderer;
+    ayTileRenderer tRenderer;
+
+    tRenderer.uFrameBufferWidth = uFrameBufferWidth;
+    tRenderer.uFrameBufferHeight = uFrameBufferHeight;
+    tRenderer.uTileSize = 32;
+    tRenderer.uTilesX = (uFrameBufferWidth + tRenderer.uTileSize - 1) / tRenderer.uTileSize;
+    tRenderer.uTilesY = (uFrameBufferHeight + tRenderer.uTileSize - 1) / tRenderer.uTileSize;
+    tRenderer.uTotalTiles = tRenderer.uTilesX * tRenderer.uTilesY;
+    return tRenderer;
 }
 
 void 
@@ -241,7 +250,7 @@ ay_present_frame(ayWindow* ptWindow, ayFrameBufferData* ptFrameBuffer)
     // upload framebuffer pixels to gl texture
     glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ptFrameBuffer->uWidth, ptFrameBuffer->uHeight, 
-                    GL_RGBA, GL_UNSIGNED_BYTE, ptFrameBuffer->pucData);
+                    GL_RGBA, GL_UNSIGNED_BYTE, ptFrameBuffer->auData);
     
     // draw fullscreen quad with texture
     glEnable(GL_TEXTURE_2D);
@@ -288,42 +297,135 @@ ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType e
 }
 
 void
-ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLocalDB, uint32_t uTileIndex, 
-    uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY)
+ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLocalDB, 
+    uint32_t uTileIndex, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY,
+    uint32_t uFirstIndex, uint32_t uIndexCount)
 {
+    // create tile local frame buffer  for ptDatatCopy to point to 
     ayFrameBufferData tTileData = {0};
     tTileData.bDepthEnabled = tDataCopy.ptFrameBufferData->bDepthEnabled;
-    tTileData.pucData = (unsigned char*)auLocalFB;
+    tTileData.auData        = auLocalFB;
     tTileData.pfDepthBuffer = afLocalDB;
-    tTileData.uHeight = uMaxY - uMinY;
-    tTileData.uWidth = uMaxX - uMinX;
+    tTileData.uHeight       = uMaxY - uMinY;
+    tTileData.uWidth        = uMaxX - uMinX;
 
+    // pass tile constraints to ptDataCopy
     tDataCopy.ptFrameBufferData = &tTileData;
     tDataCopy.uTileMinX = uMinX;
     tDataCopy.uTileMinY = uMinY;
     tDataCopy.uTileMaxX = uMaxX;
     tDataCopy.uTileMaxY = uMaxY;
 
-    ay_draw_indexed(&tDataCopy, 0, 6);
-    // eventually find a way to bin triangles which creates tile specific index and vertex buffer to put in ptDataCopy
+    ay_draw_indexed(&tDataCopy, uFirstIndex, uIndexCount);
+    // TODO: need to bin triangles and build triangle list w/ index buffer to pass to draw call 
+    // index buffers will be just i++ style lists if non indexed drawing 
+    // need to decide where to store traingle lists to pass to draw call 
+    //     
 }
 
 void 
-ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMinX, uint32_t uMinY,
-    uint32_t uMaxX, uint32_t uMaxY)
+ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY)
 {
+    // grab tile width(partial tiles possible when frame buffer dim is not divisible by tile size)
     uint32_t uTileWidth = uMaxX - uMinX;
     uint32_t uTileHeight = uMaxY - uMinY;
     
     // copy row by row
     for(uint32_t i = 0; i < uTileHeight; i++) 
     {
-        
         uint32_t uSrcOffset = i * uTileWidth * 4;  // local FB is tileWidth wide
         uint32_t uDstOffset = ((uMinY + i) * tMainFB->uWidth + uMinX) * 4;
         
-        memcpy(&tMainFB->pucData[uDstOffset], &uLocalFB[uSrcOffset], uTileWidth * 4);
+        memcpy(&tMainFB->auData[uDstOffset], &uLocalFB[uSrcOffset], uTileWidth * 4);
     }
+}
+
+typedef struct _ayTileBins
+{
+    uint32_t* uTriangleIndices;  // all triangle indices (flat array)
+    uint32_t* uCounts;           // triangles per tile 
+    uint32_t  uCapacity;         // max triangles per tile 
+    uint32_t  uTotalTiles;       // 920
+} ayTileBins;
+
+ayTileBins*
+ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uIndexCount)
+{
+    // we create all tile bins once at the beggining of the frame instead
+    ayTileBins* tTileBins = malloc(sizeof(ayTileBins));
+    if(!tTileBins) return NULL;
+    memset(tTileBins, 0, sizeof(ayTileBins));
+
+    tTileBins->uCapacity = 15; // TODO: should i make this configurable 
+    tTileBins->uTotalTiles = tRenderer.uTotalTiles;
+
+    tTileBins->uCounts = malloc(sizeof(uint32_t) * tTileBins->uTotalTiles); // 1 tile count for each tile bin
+    if(!tTileBins->uCounts) return NULL;
+    memset(tTileBins->uCounts, 0, sizeof(uint32_t) * tTileBins->uTotalTiles);
+
+    tTileBins->uTriangleIndices = malloc(sizeof(uint32_t) * tTileBins->uTotalTiles * tTileBins->uCapacity);
+    if(!tTileBins->uTriangleIndices) return NULL;
+    memset(tTileBins->uTriangleIndices, 0, sizeof(uint32_t) * tTileBins->uTotalTiles * tTileBins->uCapacity);
+
+    uint32_t uTriangleCount = uIndexCount / 3;
+
+    // check every triangle and put in tile bins that have bounding box collisions
+    for(uint32_t iTriangle = 0; iTriangle < uIndexCount; iTriangle++)
+    {
+        // get triangle verticies from index buffer 
+        uint32_t uIndex0 = ptData->puIndexBufferData[iTriangle * 3];
+        uint32_t uIndex1 = ptData->puIndexBufferData[iTriangle * 3 + 1];
+        uint32_t uIndex2 = ptData->puIndexBufferData[iTriangle * 3 + 2];
+
+        // not sure if running the vertex shader twice is the solution here 
+        // but with the vertex buffer system is the easiest thing i can think 
+        // of at the moment
+        // TODO: once tile system is working with multi threading it may be 
+        // possible to cache this data and remove from draw call to reduce 
+        // code that is rerunning 
+        ayVaryingData tVaryingData0 = {0};
+        ayVaryingData tVaryingData1 = {0};
+        ayVaryingData tVaryingData2 = {0};
+
+        const char* pcVtxBuffer = (char*)ptData->pVerticies;
+        ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
+        ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
+        ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+
+        // get triangle bounding box
+        uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
+        uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
+        uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
+        uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
+
+        // create bounding box of tiles to only check the tiles that we have to check and clamp to screen
+        uint32_t uStartTileX = uTriMinX / tRenderer.uTileSize;
+        uint32_t uStartTileY = uTriMinY / tRenderer.uTileSize;
+        uint32_t uStopTileX = uTriMaxX / tRenderer.uTileSize;
+        uint32_t uStopTileY = uTriMaxY / tRenderer.uTileSize;
+        uStopTileX = ay_min(tRenderer.uTilesX - 1, uStopTileX);
+        uStopTileY = ay_min(tRenderer.uTilesY - 1, uStopTileY);
+
+        // add triangle to all tiles, we arent doing expensive triangle intersection tests
+        // so we will waste some work by adding tiles that do not need to be checked but we 
+        // have early out checks in draw call so the conservative approach should be good
+        for(uint32_t uY = uStartTileY; uY < uStopTileY; uY++)
+        {
+            for(uint32_t uX = uStartTileX; uX < uStartTileX; uX++)
+            {
+                
+            }
+        }
+
+
+    }
+    
+
+
+
+
+
+    return tTileBins;
 }
 
 void
@@ -511,12 +613,12 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
         // type casting void buffer & defining varying data to get out of vertex shader
-        const char* pcVtxBuffer = (char*)ptData->pVerticies;
         ayVaryingData tVaryingData0 = {0};
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
 
         // vertex shader stage
+        const char* pcVtxBuffer = (char*)ptData->pVerticies;
         ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
         ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
         ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
@@ -790,27 +892,30 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
 void
 ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
+    // set tile data needed for rendering local buffers
     ayTileRenderer tRenderer = ay_init_tile_renderer(ptData->ptFrameBufferData->uWidth, ptData->ptFrameBufferData->uHeight);
 
-    uint8_t auLocalFB[32 * 32 * 4]; // TODO: move all "usigned char" pixel data to uint8_t in main renderer
+    // handle to local buffers
+    uint8_t auLocalFB[32 * 32 * 4];
     float   afLocalDB[32 * 32];
 
-
+    // TODO: replace single threaded loop once multi threading is enabled 
     for(uint32_t uTileInd = 0; uTileInd < tRenderer.uTotalTiles; uTileInd++)
     {
 
-        memset(auLocalFB, 0, sizeof(auLocalFB));
+        // clear tile local buffers
+        memset(auLocalFB, 255, sizeof(auLocalFB));
         memset(afLocalDB, 0, sizeof(afLocalDB));
 
         uint32_t uMaxX, uMaxY, uMinX, uMinY;
         ay_get_tile_bounds(&tRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
 
-        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, uMinX, uMinY, uMaxX, uMaxY);
-        
-        ay_add_tile_to_frame(ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
-        
-    }
+        ay_bin_triangles();
 
+        // render tile and copy to main frame buffer
+        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, uMinX, uMinY, uMaxX, uMaxY, uFirstIndex, uIndexCount);
+        ay_add_tile_to_frame(ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+    }
 }
 
 void 
@@ -854,8 +959,8 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled
 
     ptData->uWidth = uWidth;
     ptData->uHeight = uHeight;
-    ptData->pucData = malloc(sizeof(char) * 4 * uWidth * uHeight);
-    memset(ptData->pucData, 0, sizeof(char) * 4 * uWidth * uHeight);
+    ptData->auData = malloc(sizeof(char) * 4 * uWidth * uHeight);
+    memset(ptData->auData, 0, sizeof(char) * 4 * uWidth * uHeight);
 
     if(bDepthEnabled)
     {
@@ -873,14 +978,14 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled
 void
 ay_output_frame_buffer(ayFrameBufferData* ptData)
 {
-    stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 4, ptData->pucData, sizeof(char) * 4 * ptData->uWidth);
+    stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 4, ptData->auData, sizeof(char) * 4 * ptData->uWidth);
 };
 
 // depth buffer clear value is 0
 void
 ay_clear_frame_buffer(ayFrameBufferData* ptData)
 {
-    memset(ptData->pucData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
+    memset(ptData->auData, 255, sizeof(char) * (ptData->uHeight * 4) * (ptData->uWidth));
         
     if(ptData->bDepthEnabled && ptData->pfDepthBuffer)
     {
@@ -1078,10 +1183,10 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
     int iRowOffset = ptData->uWidth * 4 * (int)input.y;
     int iPixelStart = iRowOffset + (int)input.x * 4;
 
-    ptData->pucData[iPixelStart + 0] = (unsigned char)tColor.r;
-    ptData->pucData[iPixelStart + 1] = (unsigned char)tColor.g;
-    ptData->pucData[iPixelStart + 2] = (unsigned char)tColor.b;
-    ptData->pucData[iPixelStart + 3] = (unsigned char)tColor.a;
+    ptData->auData[iPixelStart + 0] = (unsigned char)tColor.r;
+    ptData->auData[iPixelStart + 1] = (unsigned char)tColor.g;
+    ptData->auData[iPixelStart + 2] = (unsigned char)tColor.b;
+    ptData->auData[iPixelStart + 3] = (unsigned char)tColor.a;
 
 };
 
