@@ -298,7 +298,7 @@ ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType e
 
 void
 ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLocalDB, 
-    uint32_t uTileIndex, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY,
+    uint32_t uTileIndex, ayTileBins* tTileBins, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY,
     uint32_t uFirstIndex, uint32_t uIndexCount)
 {
     // create tile local frame buffer  for ptDatatCopy to point to 
@@ -309,6 +309,27 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     tTileData.uHeight       = uMaxY - uMinY;
     tTileData.uWidth        = uMaxX - uMinX;
 
+    // create bins index buffer
+    uint32_t uBinStart = uTileIndex * tTileBins->uCapacity;
+    uint32_t uTriangleCount = tTileBins->uCounts[uTileIndex];
+
+    uint32_t auTileIndexBuffer[45] = {0}; // TODO: not efficient and does not handle case if bins capactiy is expanded
+                                           // just setting to max size of bin with capacity of 15 triangles * 3 indicies
+
+    for(uint32_t i = 0; i < uTriangleCount; i++) 
+    {
+        uint32_t uTriIdx = tTileBins->uTriangleIndices[uBinStart + i];
+        
+        // copy this triangle's 3 vertex indices from actual triangle lists
+        // the traingles actual data isnt in the bin but just indicies to 
+        // be able to access so that we are not storing extra data that we
+        // already have stored
+        auTileIndexBuffer[i * 3]     = tDataCopy.puIndexBufferData[uTriIdx * 3];
+        auTileIndexBuffer[i * 3 + 1] = tDataCopy.puIndexBufferData[uTriIdx * 3 + 1];
+        auTileIndexBuffer[i * 3 + 2] = tDataCopy.puIndexBufferData[uTriIdx * 3 + 2];
+    }
+    tDataCopy.puIndexBufferData = auTileIndexBuffer;
+
     // pass tile constraints to ptDataCopy
     tDataCopy.ptFrameBufferData = &tTileData;
     tDataCopy.uTileMinX = uMinX;
@@ -316,7 +337,7 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     tDataCopy.uTileMaxX = uMaxX;
     tDataCopy.uTileMaxY = uMaxY;
 
-    ay_draw_indexed(&tDataCopy, uFirstIndex, uIndexCount);
+    ay_draw_indexed(&tDataCopy, 0, uTriangleCount * 3);
     // TODO: need to bin triangles and build triangle list w/ index buffer to pass to draw call 
     // index buffers will be just i++ style lists if non indexed drawing 
     // need to decide where to store traingle lists to pass to draw call 
@@ -340,18 +361,10 @@ ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMi
     }
 }
 
-typedef struct _ayTileBins
-{
-    uint32_t* uTriangleIndices;  // all triangle indices (flat array)
-    uint32_t* uCounts;           // triangles per tile 
-    uint32_t  uCapacity;         // max triangles per tile 
-    uint32_t  uTotalTiles;       // 920
-} ayTileBins;
-
 ayTileBins*
-ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uIndexCount)
+ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uIndexCount, uint32_t uFirstIndex)
 {
-    // we create all tile bins once at the beggining of the frame instead
+    // we create all tile bins once at the beggining of the frame
     ayTileBins* tTileBins = malloc(sizeof(ayTileBins));
     if(!tTileBins) return NULL;
     memset(tTileBins, 0, sizeof(ayTileBins));
@@ -370,12 +383,12 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
     uint32_t uTriangleCount = uIndexCount / 3;
 
     // check every triangle and put in tile bins that have bounding box collisions
-    for(uint32_t iTriangle = 0; iTriangle < uIndexCount; iTriangle++)
+    for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
         // get triangle verticies from index buffer 
-        uint32_t uIndex0 = ptData->puIndexBufferData[iTriangle * 3];
-        uint32_t uIndex1 = ptData->puIndexBufferData[iTriangle * 3 + 1];
-        uint32_t uIndex2 = ptData->puIndexBufferData[iTriangle * 3 + 2];
+        const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
+        const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
+        const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
         // not sure if running the vertex shader twice is the solution here 
         // but with the vertex buffer system is the easiest thing i can think 
@@ -413,18 +426,24 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         {
             for(uint32_t uX = uStartTileX; uX < uStartTileX; uX++)
             {
+                uint32_t uTileIndex = uY * tRenderer.uTilesX + uX;
                 
+                // add triangle to this tile's bin
+                uint32_t uBinStart = uTileIndex * tTileBins->uCapacity;
+                uint32_t uCount = tTileBins->uCounts[uTileIndex];
+                if(uCount < tTileBins->uCapacity) 
+                {
+                    tTileBins->uTriangleIndices[uBinStart + uCount] = i;
+                    tTileBins->uCounts[uTileIndex]++;
+                }
+                else
+                {
+                    // TODO: handle overflow (realloc or warn)
+                }
             }
         }
-
-
     }
     
-
-
-
-
-
     return tTileBins;
 }
 
@@ -899,6 +918,8 @@ ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIn
     uint8_t auLocalFB[32 * 32 * 4];
     float   afLocalDB[32 * 32];
 
+    ayTileBins* tTileBins = ay_bin_triangles(ptData, tRenderer, uIndexCount, uFirstIndex);
+
     // TODO: replace single threaded loop once multi threading is enabled 
     for(uint32_t uTileInd = 0; uTileInd < tRenderer.uTotalTiles; uTileInd++)
     {
@@ -910,10 +931,8 @@ ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIn
         uint32_t uMaxX, uMaxY, uMinX, uMinY;
         ay_get_tile_bounds(&tRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
 
-        ay_bin_triangles();
-
         // render tile and copy to main frame buffer
-        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, uMinX, uMinY, uMaxX, uMaxY, uFirstIndex, uIndexCount);
+        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, tTileBins, uMinX, uMinY, uMaxX, uMaxY, uFirstIndex, uIndexCount);
         ay_add_tile_to_frame(ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
     }
 }

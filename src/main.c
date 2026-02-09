@@ -16,13 +16,22 @@ void generate_sphere(float** vertices, uint32_t** indices, int* vertex_count, in
 
 int main()
 {
-    float* vertices;
-    uint32_t* indices;
-    int num_vertices, num_indices;
+    float vertices[] = {
+        // position (x, y, z)    // UV (not used)
+        -1.0f, -1.0f, 0.5f,    0.0f, 0.0f,  // bottom left
+         1.0f, -1.0f, 0.5f,    1.0f, 0.0f,  // bottom right
+         1.0f,  1.0f, 0.5f,    1.0f, 1.0f,  // top right
+        -1.0f,  1.0f, 0.5f,    0.0f, 1.0f   // top left
+    };
+
+    uint32_t indices[] = {
+        0, 1, 2, 
+        2, 3, 0 
+    };
+
+    int num_vertices = 4;
+    int num_indices = 6;
     
-    generate_sphere(&vertices, &indices, &num_vertices, &num_indices, 30, 30);
-    
-    printf("Sphere: %d vertices, %d triangles\n", num_vertices, num_indices / 3);
     
     ayGraphicsData* ptData = initialize_graphics(screenWidth,screenHeight);
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, true);
@@ -114,7 +123,7 @@ ayVec4 ayPixelShader_lit(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescrip
     light = light * 0.5f + 0.5f;  // remap [-1,1] to [0,1]
     
     float gray = 60 + light * 190;
-    return (ayVec4){gray, gray, gray * 1.05f, 255};
+    return (ayVec4){255, 255, 255, 255};
 }
 
 ayVec3 ayVertexShader_lit(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut)
