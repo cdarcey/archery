@@ -405,6 +405,10 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
         ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
 
+        ay_ndc_to_screen(&tVertex0, ptData->uScreenWidth, ptData->uScreenHeight);
+        ay_ndc_to_screen(&tVertex1, ptData->uScreenWidth, ptData->uScreenHeight);
+        ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
+
         // get triangle bounding box
         uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
@@ -422,9 +426,9 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         // add triangle to all tiles, we arent doing expensive triangle intersection tests
         // so we will waste some work by adding tiles that do not need to be checked but we 
         // have early out checks in draw call so the conservative approach should be good
-        for(uint32_t uY = uStartTileY; uY < uStopTileY; uY++)
+        for(uint32_t uY = uStartTileY; uY <= uStopTileY; uY++)
         {
-            for(uint32_t uX = uStartTileX; uX < uStartTileX; uX++)
+            for(uint32_t uX = uStartTileX; uX <= uStopTileX; uX++)
             {
                 uint32_t uTileIndex = uY * tRenderer.uTilesX + uX;
                 
@@ -433,7 +437,7 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
                 uint32_t uCount = tTileBins->uCounts[uTileIndex];
                 if(uCount < tTileBins->uCapacity) 
                 {
-                    tTileBins->uTriangleIndices[uBinStart + uCount] = i;
+                    tTileBins->uTriangleIndices[uBinStart + uCount] = i / 3; // triangle index 
                     tTileBins->uCounts[uTileIndex]++;
                 }
                 else
