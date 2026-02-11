@@ -51,7 +51,7 @@ ay_init_new_profiler(uint32_t uBufferSize)
     memset(tNewProfileInfo, 0, sizeof(ayProfileInfo));
 
     tNewProfileInfo->uCircularBuffer = malloc(uBufferSize * sizeof(double));
-    tNewProfileInfo->uBufferSize = uBufferSize; // strore in case we need again later
+    tNewProfileInfo->uBufferSize = uBufferSize; // store in case we need again later
 
     return tNewProfileInfo;
 }
