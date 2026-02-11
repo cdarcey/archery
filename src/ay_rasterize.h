@@ -191,7 +191,8 @@ void*       ay_set_varying(ayVaryingType tType, ayVaryingData* ptVaryingDataOut)
 const void* ay_get_varying(uint32_t uVaryingIndex, const ayVaryingData* ptVaryingDataOut);
 const void* ay_get_vertex_attrib(const void* pcVertexDataIn, ayVertexLayout tLayout, uint32_t tAttribLocation);
 
-void 
-ay_test_draw_tile(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
+
+// TODO: temp need to replace once full threading impl is done 
+void ay_test_draw_tile(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
 
 #endif

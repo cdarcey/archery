@@ -14,10 +14,10 @@ int main()
     // full screen quad with RGB gradient
     float vertices[] = {
         // position          // color
-        -1.0f, -1.0f, 0.5f,  1.0f, 0.0f, 0.0f,  // bottom-left: red
-         1.0f, -1.0f, 0.5f,  0.0f, 0.0f, 1.0f,  // bottom-right: blue
-         1.0f,  1.0f, 0.5f,  1.0f, 0.0f, 1.0f,  // top-right: magenta
-        -1.0f,  1.0f, 0.5f,  0.0f, 1.0f, 0.0f   // top-left: green
+        -0.7f, -0.7f, 0.5f,  1.0f, 0.0f, 0.0f,  // bottom-left: red
+         0.7f, -0.7f, 0.5f,  0.0f, 0.0f, 1.0f,  // bottom-right: blue
+         0.7f,  0.7f, 0.5f,  1.0f, 0.0f, 1.0f,  // top-right: magenta
+        -0.7f,  0.7f, 0.5f,  0.0f, 1.0f, 0.0f   // top-left: green
     };
     
     uint32_t indices[] = {0, 1, 2, 2, 3, 0};
@@ -89,7 +89,7 @@ int main()
         ay_bind_pipeline(ptData, &tPipeline);
         
         // Switch between tiled and non-tiled here
-        ay_draw_indexed_tiled(ptData, 0, num_indices);  // Test tiled
+        ay_test_draw_tile(ptData, 0, num_indices);  // Test tiled
         // ay_draw_indexed(ptData, 0, num_indices);     // Test non-tiled
         
         ay_present_frame(ptWindow, ptFrameBuffer);

@@ -396,12 +396,6 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         // TODO: once tile system is working with multi threading it may be 
         // possible to cache this data and remove from draw call to reduce 
         // code that is rerunning 
-        //
-        // could possibly break draw call into sub phases with vertex shader 
-        // having its on call so that we can save the over head of transforming 
-        // vertex data twice -> downside is i may have to store a copy of 
-        // data since we cant change the original buffers and we would need it 
-        // to live until after drawing is entirely done
         ayVaryingData tVaryingData0 = {0};
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
@@ -924,16 +918,14 @@ ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIn
     // set tile data needed for rendering local buffers
     ayTileRenderer tRenderer = ay_init_tile_renderer(ptData->ptFrameBufferData->uWidth, ptData->ptFrameBufferData->uHeight);
 
-    // handle to local buffers // TODO: when multi threaded this needs to be created for each tile
+    // handle to local buffers
     uint8_t auLocalFB[32 * 32 * 4];
     float   afLocalDB[32 * 32];
 
     ayTileBins* tTileBins = ay_bin_triangles(ptData, tRenderer, uIndexCount, uFirstIndex);
 
-    int32_t uTileInd;
-
     // TODO: replace single threaded loop once multi threading is enabled 
-    for(uTileInd = 0; uTileInd < tRenderer.uTotalTiles; uTileInd++)
+    for(uint32_t uTileInd = 0; uTileInd < 50; uTileInd++)
     {
 
         // clear tile local buffers
