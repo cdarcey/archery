@@ -29,7 +29,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl main.c ay_rasterize.c ay_helpers.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/GLFW/include" -I"../dependencies/stb" -MD -link -LIBPATH:"../dependencies/GLFW/libs" opengl32.lib glfw3.lib user32.lib gdi32.lib shell32.lib -incremental:no /WX
+cl main.c ay_rasterize.c ay_helpers.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/GLFW/include" -I"../dependencies/stb" -MD -link -LIBPATH:"../dependencies/GLFW/libs" opengl32.lib glfw3.lib user32.lib gdi32.lib shell32.lib -incremental:no /WX 
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%

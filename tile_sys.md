@@ -136,24 +136,7 @@ Option B (If Option A bottlenecks):
 - No race conditions or artifacts
 - Proper synchronization at frame boundaries
 
-**Implementation (Option A):**
-```c
-#pragma omp parallel for
-for(int tileIdx = 0; tileIdx < totalTiles; tileIdx++)
-{
-    // Render to local buffers (no locks needed)
-    uint8_t localFB[32 * 32 * 4];
-    float localDepth[32 * 32];
-    
-    render_tile_to_local(tileIdx, localFB, localDepth);
-    
-    // Write to main framebuffer (quick lock)
-    #pragma omp critical
-    {
-        copy_tile_to_main_fb(tileIdx, localFB, localDepth);
-    }
-}
-```
+
 
 ---
 
@@ -282,23 +265,23 @@ for(int tileIdx = 0; tileIdx < totalTiles; tileIdx++)
 ## Implementation Checklist
 
 ### Phase 1 Tasks:
-- [ ] Create `ay_tile_draw_indexed()` function
-- [ ] Implement tile boundary calculation
-- [ ] Modify pixel loop to clip to tile bounds
-- [ ] Test with simple scene (sphere)
-- [ ] Visual comparison with non-tiled
-- [ ] Profile baseline performance
+- [x] Create `ay_tile_draw_indexed()` function
+- [x] Implement tile boundary calculation
+- [x] Modify pixel loop to clip to tile bounds
+- [x] Test with simple scene (sphere)
+- [x] Visual comparison with non-tiled
+- [x] Profile baseline performance
 
 ### Phase 2 Tasks:
-- [ ] Implement triangle bounding box calculation
-- [ ] Build tile-to-triangle mapping structure
-- [ ] Modify renderer to use binned triangles
-- [ ] Verify no visual regression
-- [ ] Profile and measure improvement
+- [x] Implement triangle bounding box calculation
+- [x] Build tile-to-triangle mapping structure
+- [x] Modify renderer to use binned triangles
+- [x] Verify no visual regression
+- [x] Profile and measure improvement
 - [ ] Test with complex scenes
 
 ### Phase 3 Tasks:
-- [ ] Add OpenMP or pthread support
+- [ ] Add win32 thread support -> maybe cross platfrom down the road
 - [ ] Implement per-tile local buffers
 - [ ] Add synchronization (mutex/critical section)
 - [ ] Test thread safety with thread sanitizer

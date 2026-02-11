@@ -24,6 +24,8 @@ int main()
     
     int num_vertices = 4;
     int num_indices = 6;
+
+
     
     printf("Quad: %d vertices, %d triangles\n", num_vertices, num_indices / 3);
     
