@@ -24,6 +24,7 @@ Index of this file:
 
 
 #include "ay_rasterize.h"
+#include "ay_threading.h"
 #define AY_RASTERIZE_PROFILE_ENABLED
 #include "ay_rasterize_profile.h"
 
@@ -48,9 +49,6 @@ typedef struct _ayTileRenderer
     uint32_t uFrameBufferWidth;  // 1280
     uint32_t uFrameBufferHeight; // 720
     
-    // Phase 3: Threading state
-    // uint32_t uNextTileIndex; 
-    
 } ayTileRenderer;
 
 typedef struct _ayTileBins
@@ -60,6 +58,17 @@ typedef struct _ayTileBins
     uint32_t  uCapacity;         // max triangles per tile 
     uint32_t  uTotalTiles;       // 920
 } ayTileBins;
+
+typedef struct _ayTileWorkerData
+{
+    ayGraphicsData*    ptData;
+    ayTileRenderer*    ptRenderer;
+    ayTileBins*        ptBins;
+    ayAtomicCounter*   ptNextTileIndex;
+    ayCriticalSection* ptFramebufferLock;
+    uint32_t           uFirstIndex;
+    uint32_t           uIndexCount;
+} ayTileWorkerData;
 
 typedef struct _ayGraphicsData
 {
@@ -449,6 +458,17 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
     }
     
     return tTileBins;
+}
+
+static void
+ay_free_tile_bins(ayTileBins** ppBins)
+{
+    if(!ppBins || !*ppBins) return;
+    
+    free((*ppBins)->uTriangleIndices);
+    free((*ppBins)->uCounts);
+    free(*ppBins);
+    *ppBins = NULL;
 }
 
 void
@@ -911,35 +931,89 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     }
 }
 
-
-void
-ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+void* 
+tile_worker_thread(void* pData) 
 {
-    // set tile data needed for rendering local buffers
-    ayTileRenderer tRenderer = ay_init_tile_renderer(ptData->ptFrameBufferData->uWidth, ptData->ptFrameBufferData->uHeight);
+    ayTileWorkerData* ptTileData = (ayTileWorkerData*)pData;
 
-    // handle to local buffers
-    uint8_t auLocalFB[32 * 32 * 4];
-    float   afLocalDB[32 * 32];
-
-    ayTileBins* tTileBins = ay_bin_triangles(ptData, tRenderer, uIndexCount, uFirstIndex);
-
-    // TODO: replace single threaded loop once multi threading is enabled 
-    for(uint32_t uTileInd = 0; uTileInd < 50; uTileInd++)
+    while(true)
     {
+        uint32_t uTileInd = ay_atomic_fetch_add(ptTileData->ptNextTileIndex, 1);
+        if(uTileInd >= ptTileData->ptRenderer->uTotalTiles) // frame is fully renderered
+            break;
 
-        // clear tile local buffers
+        // tile local buffers
+        uint8_t auLocalFB[32 * 32 * 4];
+        float   afLocalDB[32 * 32];
         memset(auLocalFB, 255, sizeof(auLocalFB));
         memset(afLocalDB, 0, sizeof(afLocalDB));
 
         uint32_t uMaxX, uMaxY, uMinX, uMinY;
-        ay_get_tile_bounds(&tRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
+        ay_get_tile_bounds(ptTileData->ptRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
 
-        // render tile and copy to main frame buffer
-        ay_render_tile_local(*ptData, auLocalFB, afLocalDB, uTileInd, tTileBins, uMinX, uMinY, uMaxX, uMaxY, uFirstIndex, uIndexCount);
-        ay_add_tile_to_frame(ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+        ay_render_tile_local(*ptTileData->ptData, auLocalFB, afLocalDB, uTileInd, ptTileData->ptBins, 
+                uMinX, uMinY, uMaxX, uMaxY, ptTileData->uFirstIndex, ptTileData->uIndexCount);
+    
+        // frame buffer copy needs to block since the main frame buffer will be global
+        ay_enter_critical_section(ptTileData->ptFramebufferLock); 
+        ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+        ay_leave_critical_section(ptTileData->ptFramebufferLock); 
+        
     }
+    
+    return NULL;
 }
+
+void ay_draw_indexed_tiled(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+{
+    ayTileRenderer tRenderer = ay_init_tile_renderer(ptData->ptFrameBufferData->uWidth, 
+                                                     ptData->ptFrameBufferData->uHeight);
+    ayTileBins* tTileBins = ay_bin_triangles(ptData, tRenderer, uIndexCount, uFirstIndex);
+
+    // create synchronization primitives
+    ayAtomicCounter* tTileCounter;
+    if(ay_create_atomic_counter(0, &tTileCounter) != AY_ATOMICS_RESULT_SUCCESS) 
+        return;
+
+    ayCriticalSection* tCriticalSection;
+    if(ay_create_critical_section(&tCriticalSection) != AY_THREAD_RESULT_SUCCESS)
+    {
+        ay_destroy_atomic_counter(&tTileCounter);
+        return;
+    }
+
+    // setup worker data
+    ayTileWorkerData tTileData = {
+        .ptBins            = tTileBins,
+        .ptData            = ptData,
+        .ptFramebufferLock = tCriticalSection,
+        .ptNextTileIndex   = tTileCounter,
+        .ptRenderer        = &tRenderer,
+        .uFirstIndex       = uFirstIndex,
+        .uIndexCount       = uIndexCount
+    };
+
+    // create worker threads
+    ayThread* threads[12];
+    for(int i = 0; i < 12; i++)
+    {
+        ay_create_thread(tile_worker_thread, &tTileData, &threads[i]);
+    }
+
+    // wait for all threads to complete
+    for(int i = 0; i < 12; i++)
+    {
+        ay_join_thread(threads[i]);
+        ay_destroy_thread(&threads[i]);
+    }
+
+    // cleanup
+    ay_destroy_atomic_counter(&tTileCounter);
+    ay_destroy_critical_section(&tCriticalSection);
+    ay_free_tile_bins(&tTileBins);
+}
+
+
 
 void 
 ay_test_draw_tile(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
