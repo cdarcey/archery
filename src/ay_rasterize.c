@@ -32,7 +32,7 @@ Index of this file:
 ayDrawIndProfiler g_raster_profiler = {0};
 #endif
 
-#define THREAD_COUNT 8
+#define THREAD_COUNT 10
 
 
 #include "stb_image_write.h"
@@ -326,7 +326,7 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     uint32_t uTriangleCount = tTileBins->uCounts[uTileIndex];
 
     uint32_t auTileIndexBuffer[300] = {0}; // TODO: not efficient and does not handle case if bins capactiy is expanded
-                                           // just setting to max size of bin with capacity of 15 triangles * 3 indicies
+                                           // just setting to max size of bin with capacity of X num triangles * 3 indicies
 
     for(uint32_t i = 0; i < uTriangleCount; i++) 
     {
