@@ -32,7 +32,7 @@ Index of this file:
 ayDrawIndProfiler g_raster_profiler = {0};
 #endif
 
-#define THREAD_COUNT 10
+#define THREAD_COUNT 8
 
 
 #include "stb_image_write.h"
@@ -41,6 +41,12 @@ ayDrawIndProfiler g_raster_profiler = {0};
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
 //-----------------------------------------------------------------------------
+
+typedef struct _ayTransformedVertex
+{
+    ayVec3        tScreenPos;
+    ayVaryingData tVaryings;
+} ayTransformedVertex;
 
 typedef struct _ayTileRenderer
 {
@@ -70,12 +76,14 @@ typedef struct _ayTileWorkerData
     ayCriticalSection* ptFramebufferLock;
     uint32_t           uFirstIndex;
     uint32_t           uIndexCount;
+
 } ayTileWorkerData;
 
 typedef struct _ayGraphicsData
 {
     ayFrameBufferData* ptFrameBufferData;
     const void*        pVerticies;
+    const void*        pTransformedVerts;
     ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
     ayDescriptor       tDescriptors[16]; 
@@ -372,15 +380,14 @@ ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMi
 ayTileBins*
 ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uIndexCount, uint32_t uFirstIndex)
 {
-    // we create all tile bins once at the beggining of the frame
     ayTileBins* tTileBins = malloc(sizeof(ayTileBins));
     if(!tTileBins) return NULL;
     memset(tTileBins, 0, sizeof(ayTileBins));
 
-    tTileBins->uCapacity = 100; // TODO: should i make this configurable 
+    tTileBins->uCapacity = 100;
     tTileBins->uTotalTiles = tRenderer.uTotalTiles;
 
-    tTileBins->uCounts = malloc(sizeof(uint32_t) * tTileBins->uTotalTiles); // 1 tile count for each tile bin
+    tTileBins->uCounts = malloc(sizeof(uint32_t) * tTileBins->uTotalTiles);
     if(!tTileBins->uCounts) return NULL;
     memset(tTileBins->uCounts, 0, sizeof(uint32_t) * tTileBins->uTotalTiles);
 
@@ -388,22 +395,17 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
     if(!tTileBins->uTriangleIndices) return NULL;
     memset(tTileBins->uTriangleIndices, 0, sizeof(uint32_t) * tTileBins->uTotalTiles * tTileBins->uCapacity);
 
-    uint32_t uTriangleCount = uIndexCount / 3;
+    // allocate transformed vertex buffer (position + varyings per vertex)
+    ptData->pTransformedVerts = malloc(sizeof(ayTransformedVertex) * ptData->ptPipeline->tLayout.uVertexCount);
+    ayTransformedVertex* transformedVerts = (ayTransformedVertex*)ptData->pTransformedVerts;
 
-    // check every triangle and put in tile bins that have bounding box collisions
+    // process each triangle
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
-        // get triangle verticies from index buffer 
         const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
-        // not sure if running the vertex shader twice is the solution here 
-        // but with the vertex buffer system is the easiest thing i can think 
-        // of at the moment
-        // TODO: once tile system is working with multi threading it may be 
-        // possible to cache this data and remove from draw call to reduce 
-        // code that is rerunning 
         ayVaryingData tVaryingData0 = {0};
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
@@ -417,13 +419,23 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         ay_ndc_to_screen(&tVertex1, ptData->uScreenWidth, ptData->uScreenHeight);
         ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
 
+        // store transformed vertices (position + varyings)
+        transformedVerts[uIndex0].tScreenPos = tVertex0;
+        transformedVerts[uIndex0].tVaryings = tVaryingData0;
+        
+        transformedVerts[uIndex1].tScreenPos = tVertex1;
+        transformedVerts[uIndex1].tVaryings = tVaryingData1;
+        
+        transformedVerts[uIndex2].tScreenPos = tVertex2;
+        transformedVerts[uIndex2].tVaryings = tVaryingData2;
+
         // get triangle bounding box
         uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
         uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
 
-        // create bounding box of tiles to only check the tiles that we have to check and clamp to screen
+        // create bounding box of tiles
         uint32_t uStartTileX = uTriMinX / tRenderer.uTileSize;
         uint32_t uStartTileY = uTriMinY / tRenderer.uTileSize;
         uint32_t uStopTileX = uTriMaxX / tRenderer.uTileSize;
@@ -431,26 +443,19 @@ ay_bin_triangles(ayGraphicsData* ptData, ayTileRenderer tRenderer, uint32_t uInd
         uStopTileX = ay_min(tRenderer.uTilesX - 1, uStopTileX);
         uStopTileY = ay_min(tRenderer.uTilesY - 1, uStopTileY);
 
-        // add triangle to all tiles, we arent doing expensive triangle intersection tests
-        // so we will waste some work by adding tiles that do not need to be checked but we 
-        // have early out checks in draw call so the conservative approach should be good
+        // bin triangle to overlapping tiles
         for(uint32_t uY = uStartTileY; uY <= uStopTileY; uY++)
         {
             for(uint32_t uX = uStartTileX; uX <= uStopTileX; uX++)
             {
                 uint32_t uTileIndex = uY * tRenderer.uTilesX + uX;
-                
-                // add triangle to this tile's bin
                 uint32_t uBinStart = uTileIndex * tTileBins->uCapacity;
                 uint32_t uCount = tTileBins->uCounts[uTileIndex];
+                
                 if(uCount < tTileBins->uCapacity) 
                 {
-                    tTileBins->uTriangleIndices[uBinStart + uCount] = i / 3; // triangle index 
+                    tTileBins->uTriangleIndices[uBinStart + uCount] = i / 3;
                     tTileBins->uCounts[uTileIndex]++;
-                }
-                else
-                {
-                    // TODO: handle overflow (realloc or warn)
                 }
             }
         }
@@ -633,10 +638,11 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
     }
 }
 
-void
+void 
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
-    bool bTiledRendering = (ptData->uTileMaxX > 0); // check if tilerendering or full frame
+    bool bTiledRendering = (ptData->uTileMaxX > 0);
+    bool bUseTransformedVerts = (ptData->pTransformedVerts != NULL);
 
     // set winding sign (CW need negative, CCW needs positive barycentric coords)
     float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? -1.0f : 1.0f;
@@ -645,32 +651,50 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     const uint32_t fbWidth = ptData->ptFrameBufferData->uWidth;
     const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
     float* pfDepthBuffer = ptData->ptFrameBufferData->pfDepthBuffer;
-
-    // main triangle loop
+    
+    ayTransformedVertex* transformedVerts = NULL;
+    if(bUseTransformedVerts) 
+    {
+        transformedVerts = (ayTransformedVertex*)ptData->pTransformedVerts;
+    }
+    
     for(uint32_t i = 0; i < uIndexCount; i += 3)
     {
-        PROFILE_START(VertexShader);
         const uint32_t uIndex0 = ptData->puIndexBufferData[uFirstIndex + i];
         const uint32_t uIndex1 = ptData->puIndexBufferData[uFirstIndex + i + 1];
         const uint32_t uIndex2 = ptData->puIndexBufferData[uFirstIndex + i + 2];
 
-        // type casting void buffer & defining varying data to get out of vertex shader
+        PROFILE_START(TriangleSetup);
+        ayVec3 tVertex0; 
+        ayVec3 tVertex1; 
+        ayVec3 tVertex2;
         ayVaryingData tVaryingData0 = {0};
         ayVaryingData tVaryingData1 = {0};
         ayVaryingData tVaryingData2 = {0};
+        
+        if(bUseTransformedVerts) // tiled path
+        {
+            tVertex0 = transformedVerts[uIndex0].tScreenPos;
+            tVertex1 = transformedVerts[uIndex1].tScreenPos;
+            tVertex2 = transformedVerts[uIndex2].tScreenPos;
+            
+            tVaryingData0 = transformedVerts[uIndex0].tVaryings;
+            tVaryingData1 = transformedVerts[uIndex1].tVaryings;
+            tVaryingData2 = transformedVerts[uIndex2].tVaryings;
+        }
+        else // non-tiled path
+        {
+            PROFILE_START(VertexShader);
+            const char* pcVtxBuffer = (char*)ptData->pVerticies;
+            tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
+            tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
+            tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+            PROFILE_END(VertexShader);
 
-        // vertex shader stage
-        const char* pcVtxBuffer = (char*)ptData->pVerticies;
-        ayVec3 tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
-        ayVec3 tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
-        ayVec3 tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
-        PROFILE_END(VertexShader);
-
-        // frame buffer space transformation
-        PROFILE_START(TriangleSetup);
-        ay_ndc_to_screen(&tVertex0, ptData->uScreenWidth, ptData->uScreenHeight);
-        ay_ndc_to_screen(&tVertex1, ptData->uScreenWidth, ptData->uScreenHeight);
-        ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
+            ay_ndc_to_screen(&tVertex0, ptData->uScreenWidth, ptData->uScreenHeight);
+            ay_ndc_to_screen(&tVertex1, ptData->uScreenWidth, ptData->uScreenHeight);
+            ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
+        }
 
         // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
@@ -928,6 +952,8 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         } 
         PROFILE_END(PixelLoop);
     }
+
+    free(ptData->pTransformedVerts);
 }
 
 void* 

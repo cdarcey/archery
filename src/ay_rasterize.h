@@ -99,6 +99,7 @@ typedef struct _ayVertexLayout
     ayVertexAttributeType tAttribType[16];
     size_t                szAttribOffset[16];
     size_t                szVertexStride;
+    uint32_t              uVertexCount;
 } ayVertexLayout;
 
 typedef struct _ayPixelShaderBuiltIns

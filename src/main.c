@@ -34,23 +34,25 @@ int main()
     
     ayPipeline quadPipeline = {
         .tVertexWinding = AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
-        .tPixelShader = color_gradient_pixel_shader,
-        .tVertexShader = color_gradient_vertex_shader,
+        .tPixelShader   = color_gradient_pixel_shader,
+        .tVertexShader  = color_gradient_vertex_shader,
         .tLayout = {
-            .tAttribType = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3, AY_VERTEX_ATTRIBUTE_TYPE_VEC3},
+            .tAttribType    = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3, AY_VERTEX_ATTRIBUTE_TYPE_VEC3},
             .szAttribOffset = {0, sizeof(float) * 3},
             .szVertexStride = sizeof(float) * 6,
+            .uVertexCount   = 4
         }
     };
 
     ayPipeline spherePipeline = {
         .tVertexWinding = AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
-        .tPixelShader = sphere_pixel_shader,
-        .tVertexShader = sphere_vertex_shader,
+        .tPixelShader   = sphere_pixel_shader,
+        .tVertexShader  = sphere_vertex_shader,
         .tLayout = {
-            .tAttribType = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3, AY_VERTEX_ATTRIBUTE_TYPE_VEC2},
+            .tAttribType    = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3, AY_VERTEX_ATTRIBUTE_TYPE_VEC2},
             .szAttribOffset = {0, sizeof(ayVec3)},
             .szVertexStride = sizeof(float) * 5,
+            .uVertexCount   = sphere_vertex_count
         }
     };
     
