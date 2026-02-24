@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include "ay_rasterize.h"
@@ -28,7 +26,8 @@ int main()
     int sphere_vertex_count, sphere_index_count;
     generate_sphere(&sphere_vertices, &sphere_indices, &sphere_vertex_count, &sphere_index_count, 30, 30);
 
-    ayGraphicsData* ptData = initialize_graphics(screenWidth, screenHeight);
+    // initialize graphics with tiling enabled
+    ayGraphicsData* ptData = ay_initialize_graphics(screenWidth, screenHeight, true);
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, true);
     ayWindow* ptWindow = ay_create_window(screenWidth, screenHeight, "Renderer Test");
     
@@ -108,20 +107,19 @@ int main()
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &mvp);
         ay_bind_pipeline(ptData, &spherePipeline);
         
-        // ay_draw_indexed_tiled(ptData, 0, 6);
-        // ay_draw_indexed(ptData, 0, 6);
-        ay_draw_indexed_tiled(ptData, 0, sphere_index_count);
-        // ay_draw_indexed(ptData, 0, sphere_index_count);
+        ay_draw_indexed(ptData, 0, sphere_index_count);
         
         ay_present_frame(ptWindow, ptFrameBuffer);
-        // ay_output_frame_buffer(ptFrameBuffer);
     }
     
+    // proper cleanup
     ay_destroy_window(ptWindow);
+    ay_destroy_graphics(&ptData); 
+    
     free(ptFrameBuffer->pfDepthBuffer);
     free(ptFrameBuffer->auData);
     free(ptFrameBuffer);
-    free(ptData);
+    
     free(sphere_vertices);
     free(sphere_indices);
     
