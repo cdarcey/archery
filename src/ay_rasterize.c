@@ -1326,81 +1326,80 @@ ay_sample_texture(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 ayVec4
 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 {
-    // convert UV to exact pixel coordinates
+    // bilinearly samples a texture at uv, 
+    // returning interpolated rgb and 
+    // passthrough alpha from the top-left texel
+    
     float fPixelX = tUV.x * (tTexture.iWidth - 1);
     float fPixelY = tUV.y * (tTexture.iHeight - 1);
-    
-    // get integer coordinates of surrounding pixels
+
     int iX0 = (int)fPixelX;
     int iY0 = (int)fPixelY;
     int iX1 = iX0 + 1;
     int iY1 = iY0 + 1;
 
-    // compute offset & clamp & calculate fractional parts for interpolation
-    int iOffsetStartForPassthrough = (iY0 * tTexture.iWidth + iX0) * uComponents;
-    float fAlphaPassthrough = (float)tTexture.pucData[iOffsetStartForPassthrough + 3];
-    
     iX1 = iX1 >= tTexture.iWidth ? tTexture.iWidth - 1 : iX1;
     iY1 = iY1 >= tTexture.iHeight ? tTexture.iHeight - 1 : iY1;
 
     float fFracX = fPixelX - iX0;
     float fFracY = fPixelY - iY0;
-    
-    // sample all 4 surrounding pixels
-    ayVec3 tTopLeft; 
-    ayVec3 tBottomLeft;
-    ayVec3 tTopRight;
-    ayVec3 tBottomRight;
 
-    int iOffset = (iY0 * tTexture.iWidth + iX0) * uComponents;
-    tTopLeft = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
+    float fWX0 = 1.0f - fFracX;
+    float fWY0 = 1.0f - fFracY;
+
+    int iRow0 = iY0 * tTexture.iWidth;
+    int iRow1 = iY1 * tTexture.iWidth;
+
+    int iOffsetTL = (iRow0 + iX0) * uComponents;
+    int iOffsetTR = (iRow0 + iX1) * uComponents;
+    int iOffsetBL = (iRow1 + iX0) * uComponents;
+    int iOffsetBR = (iRow1 + iX1) * uComponents;
+
+    float fAlphaPassthrough = (float)tTexture.pucData[iOffsetTL + 3];
+
+    ayVec3 tTopLeft = {
+        (float)tTexture.pucData[iOffsetTL],
+        (float)tTexture.pucData[iOffsetTL + 1],
+        (float)tTexture.pucData[iOffsetTL + 2]
     };
-    
-    iOffset = (iY0 * tTexture.iWidth + iX1) * uComponents;
-    tTopRight = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
+
+    ayVec3 tTopRight = {
+        (float)tTexture.pucData[iOffsetTR],
+        (float)tTexture.pucData[iOffsetTR + 1],
+        (float)tTexture.pucData[iOffsetTR + 2]
     };
-    
-    iOffset = (iY1 * tTexture.iWidth + iX0) * uComponents;
-    tBottomLeft = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
+
+    ayVec3 tBottomLeft = {
+        (float)tTexture.pucData[iOffsetBL],
+        (float)tTexture.pucData[iOffsetBL + 1],
+        (float)tTexture.pucData[iOffsetBL + 2]
     };
-    
-    iOffset = (iY1 * tTexture.iWidth + iX1) * uComponents;
-    tBottomRight = (ayVec3){
-        (float)tTexture.pucData[iOffset],
-        (float)tTexture.pucData[iOffset + 1],
-        (float)tTexture.pucData[iOffset + 2]
+
+    ayVec3 tBottomRight = {
+        (float)tTexture.pucData[iOffsetBR],
+        (float)tTexture.pucData[iOffsetBR + 1],
+        (float)tTexture.pucData[iOffsetBR + 2]
     };
-    
-    // linear interpolation horizontally
+
     ayVec3 tTop = {
-        tTopLeft.r + fFracX * (tBottomRight.r - tTopLeft.r),
-        tTopLeft.g + fFracX * (tBottomRight.g - tTopLeft.g),
-        tTopLeft.b + fFracX * (tBottomRight.b - tTopLeft.b)
+        tTopLeft.r * fWX0 + tTopRight.r * fFracX,
+        tTopLeft.g * fWX0 + tTopRight.g * fFracX,
+        tTopLeft.b * fWX0 + tTopRight.b * fFracX
     };
-    
+
     ayVec3 tBottom = {
-        tBottomLeft.r + fFracX * (tBottomRight.r - tBottomLeft.r),
-        tBottomLeft.g + fFracX * (tBottomRight.g - tBottomLeft.g),
-        tBottomLeft.b + fFracX * (tBottomRight.b - tBottomLeft.b)
+        tBottomLeft.r * fWX0 + tBottomRight.r * fFracX,
+        tBottomLeft.g * fWX0 + tBottomRight.g * fFracX,
+        tBottomLeft.b * fWX0 + tBottomRight.b * fFracX
     };
-    
-    // linear interpolation vertically (final result)
+
     ayVec4 tResult = {
-        tTop.r + fFracY * (tBottom.r - tTop.r),
-        tTop.g + fFracY * (tBottom.g - tTop.g),
-        tTop.b + fFracY * (tBottom.b - tTop.b),
+        tTop.r * fWY0 + tBottom.r * fFracY,
+        tTop.g * fWY0 + tBottom.g * fFracY,
+        tTop.b * fWY0 + tBottom.b * fFracY,
         fAlphaPassthrough
     };
-    
+
     return tResult;
 }
 
