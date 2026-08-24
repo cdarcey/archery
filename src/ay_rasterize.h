@@ -130,6 +130,27 @@ typedef struct _ayDescriptor
     ayDescriptorType eType;
 } ayDescriptor;
 
+typedef struct _ayTileRenderInfo
+{
+    uint32_t uTileSize; // 0 defaults to 32
+} ayTileRenderInfo;
+
+typedef struct _ayUpscaleInfo
+{
+    uint32_t uOutputWidth;
+    uint32_t uOutputHeight;
+} ayUpscaleInfo;
+
+typedef struct _ayCreateGraphicsInfo
+{
+    uint32_t         uScreenWidth;
+    uint32_t         uScreenHeight;
+    bool             bTileRendering;
+    ayTileRenderInfo tTileSettings;
+    bool             bUpscale;
+    ayUpscaleInfo    tUpscaleSettings;
+} ayCreateGraphicsInfo;
+
 // function pointers
 typedef ayVec4 (*ayPixelShader)(ayPixelShaderBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn);
 typedef ayVec3 (*ayVertexShader)(ayVertexShaderBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut);
@@ -148,14 +169,14 @@ typedef struct _ayPipeline
 
 //-------------------------------setup-----------------------------------------
 
-ayGraphicsData* ay_initialize_graphics(uint32_t uScreenWidth, uint32_t uScreenHeight, bool bTileRender);
+ayGraphicsData* ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo);
 void            ay_destroy_graphics(ayGraphicsData** ppData);
 
 // windowing & presenting
 ayWindow* ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle);
 void      ay_destroy_window(ayWindow* ptWindow);
 bool      ay_window_should_close(ayWindow* ptWindow);
-void      ay_present_frame(ayWindow* ptWindow, ayFrameBufferData* ptFrameBuffer);
+void      ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow);
 
 // framebuffer ops
 ayFrameBufferData* ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled);

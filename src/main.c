@@ -1,9 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "ay_rasterize.h"
+#define AY_RASTERIZE_PROFILE_ENABLED
+#include "ay_rasterize_profile.h"
 
-#define screenWidth  1280
-#define screenHeight 720
+#define bUpscaleEnabled true
+
+// real output/window resolution, always the same regardless of the toggle
+#define outputWidth  1280
+#define outputHeight 720
+
+// render resolution: low-res when upscaling is on, full output res when off
+#define screenWidth  (bUpscaleEnabled ? 640 : outputWidth)
+#define screenHeight (bUpscaleEnabled ? 360 : outputHeight)
+
+#define uWarmupFrames     60
+#define uBenchmarkFrames  300
 
 ayVec4 texture_sample_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn);
 ayVec3 texture_sample_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut);
@@ -33,10 +45,19 @@ int main()
         .iHeight = iTexHeight
     };
 
-    // tiling disabled
-    ayGraphicsData* ptData = ay_initialize_graphics(screenWidth, screenHeight, true);
+    ayCreateGraphicsInfo tGraphicsInfo = {
+        .uScreenWidth   = screenWidth,
+        .uScreenHeight  = screenHeight,
+        .bTileRendering = true,
+        .bUpscale       = bUpscaleEnabled,
+        .tUpscaleSettings = {
+            .uOutputWidth  = outputWidth,
+            .uOutputHeight = outputHeight
+        }
+    };
+    ayGraphicsData* ptData = ay_initialize_graphics(&tGraphicsInfo);
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, false);
-    ayWindow* ptWindow = ay_create_window(screenWidth, screenHeight, "Sampling Test");
+    ayWindow* ptWindow = ay_create_window(outputWidth, outputHeight, "Upscale Test");
 
     ayPipeline texturePipeline = {
         .tVertexWinding = AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
@@ -53,18 +74,58 @@ int main()
     double dLastFPSTime = glfwGetTime();
     int iFrameCount = 0;
 
+    // benchmark state
+    uint32_t uFramesSeen = 0;
+    double dBenchmarkTimeSum = 0.0;
+    double dLastFrameTime = glfwGetTime();
+    double dUpscaleTimeAtWindowStart = 0.0;
+    bool bBenchmarkDone = false;
+
     while(!ay_window_should_close(ptWindow))
     {
         glfwPollEvents();
 
         double dCurrentTime = glfwGetTime();
+        double dFrameTime = dCurrentTime - dLastFrameTime;
+        dLastFrameTime = dCurrentTime;
+
+        if(!bBenchmarkDone)
+        {
+            uFramesSeen++;
+
+            // snapshot the profiler's running total right as the benchmark window begins
+            if(uFramesSeen == uWarmupFrames + 1)
+            {
+                dUpscaleTimeAtWindowStart = g_raster_profiler.dUpscalePass[0];
+            }
+
+            // skip warmup frames, then accumulate the benchmark window
+            if(uFramesSeen > uWarmupFrames)
+            {
+                dBenchmarkTimeSum += dFrameTime;
+
+                if(uFramesSeen - uWarmupFrames == uBenchmarkFrames)
+                {
+                    double dAverageFrameTimeMs = (dBenchmarkTimeSum / uBenchmarkFrames) * 1000.0;
+                    double dUpscaleTimeInWindow = g_raster_profiler.dUpscalePass[0] - dUpscaleTimeAtWindowStart;
+                    double dAverageUpscaleTimeMs = dUpscaleTimeInWindow / uBenchmarkFrames;
+
+                    printf("average frame time over %u frames (after %u warmup): %.3f ms (%.1f fps)\n",
+                           uBenchmarkFrames, uWarmupFrames, dAverageFrameTimeMs, 1000.0 / dAverageFrameTimeMs);
+                    printf("  of which average upscale pass time: %.3f ms (%.1f%%)\n",
+                           dAverageUpscaleTimeMs, (dAverageUpscaleTimeMs / dAverageFrameTimeMs) * 100.0);
+                    bBenchmarkDone = true;
+                }
+            }
+        }
+
         iFrameCount++;
 
         if(dCurrentTime - dLastFPSTime >= 1.0)
         {
             double fps = iFrameCount / (dCurrentTime - dLastFPSTime);
             char title[256];
-            sprintf(title, "Sampling Test | FPS: %.1f (%.2f ms)", fps, 1000.0 / fps);
+            sprintf(title, "Upscale Test | FPS: %.1f (%.2f ms)", fps, 1000.0 / fps);
             glfwSetWindowTitle(ptWindow->pWindow, title);
             iFrameCount = 0;
             dLastFPSTime = dCurrentTime;
@@ -80,7 +141,7 @@ int main()
 
         ay_draw_indexed(ptData, 0, 6);
 
-        ay_present_frame(ptWindow, ptFrameBuffer);
+        ay_present_frame(ptData, ptWindow);
     }
 
     ay_destroy_window(ptWindow);

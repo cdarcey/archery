@@ -17,6 +17,7 @@ typedef struct _ayDrawIndProfiler
     double   dDepthTest[DRAW_IND_SAMPLES];
     double   dFragmentShader[DRAW_IND_SAMPLES];
     double   dLoopOverhead[DRAW_IND_SAMPLES];
+    double   dUpscalePass[DRAW_IND_SAMPLES];
     uint32_t uCurrentFrame;
 } ayDrawIndProfiler;
 

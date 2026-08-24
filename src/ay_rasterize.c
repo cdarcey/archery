@@ -96,6 +96,11 @@ typedef struct _ayGraphicsData
     uint32_t           uTileMinY;
     uint32_t           uTileMaxX;
     uint32_t           uTileMaxY;
+
+    // upscaling (uOutputWidth/uOutputHeight both 0 if bUpscaling == false)
+    bool            bUpscaling;
+    ayUpscaleInfo   tUpscaleInfo;
+    ayFrameBufferData* ptOutputFrameBuffer;
 } ayGraphicsData;
 
 //-----------------------------------------------------------------------------
@@ -104,6 +109,7 @@ typedef struct _ayGraphicsData
 
 void        ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
 static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
+static void ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -170,13 +176,13 @@ ay_blend_varying_component(float* dest, const float* v0, const float* v1, const 
 }
 
 ayTileRenderer 
-ay_init_tile_renderer(uint32_t uFrameBufferWidth, uint32_t uFrameBufferHeight)
+ay_init_tile_renderer(uint32_t uFrameBufferWidth, uint32_t uFrameBufferHeight, uint32_t uTileSize)
 {
     ayTileRenderer tRenderer;
 
     tRenderer.uFrameBufferWidth = uFrameBufferWidth;
     tRenderer.uFrameBufferHeight = uFrameBufferHeight;
-    tRenderer.uTileSize = 32;
+    tRenderer.uTileSize = uTileSize == 0 ? 32 : uTileSize;
     tRenderer.uTilesX = (uFrameBufferWidth + tRenderer.uTileSize - 1) / tRenderer.uTileSize;
     tRenderer.uTilesY = (uFrameBufferHeight + tRenderer.uTileSize - 1) / tRenderer.uTileSize;
     tRenderer.uTotalTiles = tRenderer.uTilesX * tRenderer.uTilesY;
@@ -201,21 +207,21 @@ ay_get_tile_bounds(ayTileRenderer* ptRenderer, uint32_t uTileIndex, uint32_t* pu
 //-----------------------------------------------------------------------------
 
 ayGraphicsData*
-ay_initialize_graphics(uint32_t uScreenWidth, uint32_t uScreenHeight, bool bTileRender)
+ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo)
 {
     ayGraphicsData* ptData = malloc(sizeof(ayGraphicsData));
     if(!ptData) return NULL;
     memset(ptData, 0, sizeof(ayGraphicsData));
 
-    ptData->uScreenWidth = uScreenWidth;
-    ptData->uScreenHeight = uScreenHeight;
-    ptData->bTileRendering = bTileRender;
+    ptData->uScreenWidth = ptCreateGraphicsInfo->uScreenWidth;
+    ptData->uScreenHeight = ptCreateGraphicsInfo->uScreenHeight;
+    ptData->bTileRendering = ptCreateGraphicsInfo->bTileRendering;
 
-    if(bTileRender)
+    if(ptCreateGraphicsInfo->bTileRendering)
     {
         // if tile rendering we allocate everything here and will free in graphics destroy function
         ptData->ptTileRenderer = malloc(sizeof(ayTileRenderer));
-        *ptData->ptTileRenderer = ay_init_tile_renderer(uScreenWidth, uScreenHeight);
+        *ptData->ptTileRenderer = ay_init_tile_renderer(ptCreateGraphicsInfo->uScreenWidth, ptCreateGraphicsInfo->uScreenHeight, ptCreateGraphicsInfo->tTileSettings.uTileSize);
         
         ptData->ptTileBins = malloc(sizeof(ayTileBins));
         memset(ptData->ptTileBins, 0, sizeof(ayTileBins));
@@ -229,6 +235,20 @@ ay_initialize_graphics(uint32_t uScreenWidth, uint32_t uScreenHeight, bool bTile
         // transformed vertex cache starts NULL, grows on first draw
         ptData->pTransformedVertexCache = NULL;
         ptData->szTransformedVertexCapacity = 0;
+    }
+
+    ptData->bUpscaling = ptCreateGraphicsInfo->bUpscale;
+
+    if(ptCreateGraphicsInfo->bUpscale)
+    {
+        ptData->tUpscaleInfo = ptCreateGraphicsInfo->tUpscaleSettings;
+
+        // no depth needed, upscale pass only writes color
+        ptData->ptOutputFrameBuffer = ay_initialize_frame_buffer(
+            ptCreateGraphicsInfo->tUpscaleSettings.uOutputWidth,
+            ptCreateGraphicsInfo->tUpscaleSettings.uOutputHeight,
+            false
+        );
     }
 
     return ptData;
@@ -253,6 +273,13 @@ ay_destroy_graphics(ayGraphicsData** ppData)
         }
         
         free(ptData->ptTileRenderer);
+    }
+    
+    if(ptData->bUpscaling && ptData->ptOutputFrameBuffer)
+    {
+        free(ptData->ptOutputFrameBuffer->auData);
+        free(ptData->ptOutputFrameBuffer->pfDepthBuffer);
+        free(ptData->ptOutputFrameBuffer);
     }
     
     free(ptData);
@@ -310,12 +337,22 @@ ay_window_should_close(ayWindow* ptWindow)
 }
 
 void 
-ay_present_frame(ayWindow* ptWindow, ayFrameBufferData* ptFrameBuffer)
+ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow)
 {
+    ayFrameBufferData* ptSourceBuffer = ptData->ptFrameBufferData;
+
+    if(ptData->bUpscaling)
+    {
+        PROFILE_START(UpscalePass);
+        ay_upscale_frame_buffer(ptData->ptFrameBufferData, ptData->ptOutputFrameBuffer);
+        PROFILE_END(UpscalePass);
+        ptSourceBuffer = ptData->ptOutputFrameBuffer;
+    }
+
     // upload framebuffer pixels to gl texture
     glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ptFrameBuffer->uWidth, ptFrameBuffer->uHeight, 
-                    GL_RGBA, GL_UNSIGNED_BYTE, ptFrameBuffer->auData);
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ptSourceBuffer->uWidth, ptSourceBuffer->uHeight, 
+                    GL_RGBA, GL_UNSIGNED_BYTE, ptSourceBuffer->auData);
     
     // draw fullscreen quad with texture
     glEnable(GL_TEXTURE_2D);
@@ -1428,6 +1465,35 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
     ptData->auData[iPixelStart + 3] = (unsigned char)tColor.a;
 
 };
+
+static void
+ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer)
+{
+    ayTexture tLowResTexture = {
+        .pucData = ptInputFrameBuffer->auData,
+        .iWidth  = ptInputFrameBuffer->uWidth,
+        .iHeight = ptInputFrameBuffer->uHeight
+    };
+
+    for(uint32_t uY = 0; uY < ptOutputFrameBuffer->uHeight; uY++)
+    {
+        float fV = (float)uY / (float)(ptOutputFrameBuffer->uHeight - 1);
+        int iRowOffset = ptOutputFrameBuffer->uWidth * 4 * uY;
+
+        for(uint32_t uX = 0; uX < ptOutputFrameBuffer->uWidth; uX++)
+        {
+            float fU = (float)uX / (float)(ptOutputFrameBuffer->uWidth - 1);
+
+            ayVec4 tColor = ay_sample_texture(tLowResTexture, (ayVec2){fU, fV}, 4);
+
+            int iPixelStart = iRowOffset + uX * 4;
+            ptOutputFrameBuffer->auData[iPixelStart + 0] = (unsigned char)tColor.r;
+            ptOutputFrameBuffer->auData[iPixelStart + 1] = (unsigned char)tColor.g;
+            ptOutputFrameBuffer->auData[iPixelStart + 2] = (unsigned char)tColor.b;
+            ptOutputFrameBuffer->auData[iPixelStart + 3] = (unsigned char)tColor.a;
+        }
+    }
+}
 
 //-----------------------------------------------------------------------------
 // [SECTION] unity build
