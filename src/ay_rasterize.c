@@ -73,6 +73,15 @@ typedef struct _ayTileWorkerData
     ayCriticalSection* ptFramebufferLock;
 } ayTileWorkerData;
 
+typedef struct _ayUpscaleWorkerData
+{
+    ayFrameBufferData* ptInputFrameBuffer;
+    ayFrameBufferData* ptOutputFrameBuffer;
+    ayUpscaleFilter     tFilter;
+    uint32_t           uStartY; // inclusive
+    uint32_t           uEndY;   // exclusive
+} ayUpscaleWorkerData;
+
 typedef struct _ayGraphicsData
 {
     ayFrameBufferData* ptFrameBufferData;
@@ -109,7 +118,8 @@ typedef struct _ayGraphicsData
 
 void        ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
 static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
-static void ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer);
+void*       upscale_worker_thread(void* pData);
+static void ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
@@ -145,6 +155,26 @@ ay_max3(int a, int b, int c)
 {
     int temp = (a > b) ? a : b;
     return (temp > c) ? temp : c;
+}
+
+static inline int
+ay_clamp_int(int iValue, int iMin, int iMax)
+{
+    if(iValue < iMin) return iMin;
+    if(iValue > iMax) return iMax;
+    return iValue;
+}
+
+static float
+ay_cubic_hermite(float fA, float fB, float fC, float fD, float fT)
+{
+    // catmull-rom style hermite interpolation through 4 points, weight fT in [0,1] between b and c
+    float fA0 = -fA * 0.5f + fB * 1.5f - fC * 1.5f + fD * 0.5f;
+    float fA1 = fA - fB * 2.5f + fC * 2.0f - fD * 0.5f;
+    float fA2 = -fA * 0.5f + fC * 0.5f;
+    float fA3 = fB;
+
+    return fA0 * fT * fT * fT + fA1 * fT * fT + fA2 * fT + fA3;
 }
 
 static inline void 
@@ -344,7 +374,7 @@ ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow)
     if(ptData->bUpscaling)
     {
         PROFILE_START(UpscalePass);
-        ay_upscale_frame_buffer(ptData->ptFrameBufferData, ptData->ptOutputFrameBuffer);
+        ay_upscale_frame_buffer(ptData->ptFrameBufferData, ptData->ptOutputFrameBuffer, ptData->tUpscaleInfo.tFilter);
         PROFILE_END(UpscalePass);
         ptSourceBuffer = ptData->ptOutputFrameBuffer;
     }
@@ -1440,6 +1470,62 @@ ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
     return tResult;
 }
 
+ayVec4
+ay_sample_texture_bicubic(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
+{
+    // 16-tap catmull-rom bicubic sample, alpha passthrough from nearest texel
+
+    float fPixelX = tUV.x * (tTexture.iWidth - 1);
+    float fPixelY = tUV.y * (tTexture.iHeight - 1);
+
+    int iX1 = (int)fPixelX;
+    int iY1 = (int)fPixelY;
+
+    float fFracX = fPixelX - iX1;
+    float fFracY = fPixelY - iY1;
+
+    float afRowResults[4][3];
+
+    for(int iRow = -1; iRow <= 2; iRow++)
+    {
+        int iSampleY = ay_clamp_int(iY1 + iRow, 0, tTexture.iHeight - 1);
+
+        float afSamples[4][3];
+        for(int iCol = -1; iCol <= 2; iCol++)
+        {
+            int iSampleX = ay_clamp_int(iX1 + iCol, 0, tTexture.iWidth - 1);
+            int iOffset = (iSampleY * tTexture.iWidth + iSampleX) * uComponents;
+
+            afSamples[iCol + 1][0] = (float)tTexture.pucData[iOffset];
+            afSamples[iCol + 1][1] = (float)tTexture.pucData[iOffset + 1];
+            afSamples[iCol + 1][2] = (float)tTexture.pucData[iOffset + 2];
+        }
+
+        afRowResults[iRow + 1][0] = ay_cubic_hermite(afSamples[0][0], afSamples[1][0], afSamples[2][0], afSamples[3][0], fFracX);
+        afRowResults[iRow + 1][1] = ay_cubic_hermite(afSamples[0][1], afSamples[1][1], afSamples[2][1], afSamples[3][1], fFracX);
+        afRowResults[iRow + 1][2] = ay_cubic_hermite(afSamples[0][2], afSamples[1][2], afSamples[2][2], afSamples[3][2], fFracX);
+    }
+
+    int iAlphaSampleY = ay_clamp_int(iY1, 0, tTexture.iHeight - 1);
+    int iAlphaSampleX = ay_clamp_int(iX1, 0, tTexture.iWidth - 1);
+    int iAlphaOffset = (iAlphaSampleY * tTexture.iWidth + iAlphaSampleX) * uComponents;
+    float fAlphaPassthrough = (float)tTexture.pucData[iAlphaOffset + 3];
+
+    ayVec4 tResult = {
+        ay_cubic_hermite(afRowResults[0][0], afRowResults[1][0], afRowResults[2][0], afRowResults[3][0], fFracY),
+        ay_cubic_hermite(afRowResults[0][1], afRowResults[1][1], afRowResults[2][1], afRowResults[3][1], fFracY),
+        ay_cubic_hermite(afRowResults[0][2], afRowResults[1][2], afRowResults[2][2], afRowResults[3][2], fFracY),
+        fAlphaPassthrough
+    };
+
+    // clamp since catmull-rom can overshoot/ring past 0-255
+    tResult.r = tResult.r < 0.0f ? 0.0f : (tResult.r > 255.0f ? 255.0f : tResult.r);
+    tResult.g = tResult.g < 0.0f ? 0.0f : (tResult.g > 255.0f ? 255.0f : tResult.g);
+    tResult.b = tResult.b < 0.0f ? 0.0f : (tResult.b > 255.0f ? 255.0f : tResult.b);
+
+    return tResult;
+}
+
 //-----------------------------------------------------------------------------
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
@@ -1466,32 +1552,79 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
 
 };
 
-static void
-ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer)
+void*
+upscale_worker_thread(void* pData)
 {
+    ayUpscaleWorkerData* ptWorkerData = (ayUpscaleWorkerData*)pData;
+
     ayTexture tLowResTexture = {
-        .pucData = ptInputFrameBuffer->auData,
-        .iWidth  = ptInputFrameBuffer->uWidth,
-        .iHeight = ptInputFrameBuffer->uHeight
+        .pucData = ptWorkerData->ptInputFrameBuffer->auData,
+        .iWidth  = ptWorkerData->ptInputFrameBuffer->uWidth,
+        .iHeight = ptWorkerData->ptInputFrameBuffer->uHeight
     };
 
-    for(uint32_t uY = 0; uY < ptOutputFrameBuffer->uHeight; uY++)
+    for(uint32_t uY = ptWorkerData->uStartY; uY < ptWorkerData->uEndY; uY++)
     {
-        float fV = (float)uY / (float)(ptOutputFrameBuffer->uHeight - 1);
-        int iRowOffset = ptOutputFrameBuffer->uWidth * 4 * uY;
+        float fV = (float)uY / (float)(ptWorkerData->ptOutputFrameBuffer->uHeight - 1);
+        int iRowOffset = ptWorkerData->ptOutputFrameBuffer->uWidth * 4 * uY;
 
-        for(uint32_t uX = 0; uX < ptOutputFrameBuffer->uWidth; uX++)
+        for(uint32_t uX = 0; uX < ptWorkerData->ptOutputFrameBuffer->uWidth; uX++)
         {
-            float fU = (float)uX / (float)(ptOutputFrameBuffer->uWidth - 1);
+            float fU = (float)uX / (float)(ptWorkerData->ptOutputFrameBuffer->uWidth - 1);
 
-            ayVec4 tColor = ay_sample_texture(tLowResTexture, (ayVec2){fU, fV}, 4);
+            ayVec4 tColor;
+            switch(ptWorkerData->tFilter)
+            {
+                case AY_UPSCALE_FILTER_BILINEAR:
+                    tColor = ay_sample_texture_bilinear(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    break;
+                case AY_UPSCALE_FILTER_BICUBIC:
+                    tColor = ay_sample_texture_bicubic(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    break;
+                case AY_UPSCALE_FILTER_NEAREST:
+                default:
+                    tColor = ay_sample_texture(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    break;
+            }
 
             int iPixelStart = iRowOffset + uX * 4;
-            ptOutputFrameBuffer->auData[iPixelStart + 0] = (unsigned char)tColor.r;
-            ptOutputFrameBuffer->auData[iPixelStart + 1] = (unsigned char)tColor.g;
-            ptOutputFrameBuffer->auData[iPixelStart + 2] = (unsigned char)tColor.b;
-            ptOutputFrameBuffer->auData[iPixelStart + 3] = (unsigned char)tColor.a;
+            ptWorkerData->ptOutputFrameBuffer->auData[iPixelStart + 0] = (unsigned char)tColor.r;
+            ptWorkerData->ptOutputFrameBuffer->auData[iPixelStart + 1] = (unsigned char)tColor.g;
+            ptWorkerData->ptOutputFrameBuffer->auData[iPixelStart + 2] = (unsigned char)tColor.b;
+            ptWorkerData->ptOutputFrameBuffer->auData[iPixelStart + 3] = (unsigned char)tColor.a;
         }
+    }
+
+    return NULL;
+}
+
+static void
+ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter)
+{
+    // rows are split evenly across threads, no lock needed since each
+    // thread only ever writes its own disjoint row range
+    uint32_t uRowsPerThread = ptOutputFrameBuffer->uHeight / THREAD_COUNT;
+
+    ayUpscaleWorkerData tWorkerData[THREAD_COUNT];
+    ayThread* tThreads[THREAD_COUNT];
+
+    for(int i = 0; i < THREAD_COUNT; i++)
+    {
+        tWorkerData[i].ptInputFrameBuffer  = ptInputFrameBuffer;
+        tWorkerData[i].ptOutputFrameBuffer = ptOutputFrameBuffer;
+        tWorkerData[i].tFilter = tFilter;
+        tWorkerData[i].uStartY = i * uRowsPerThread;
+
+        // last thread picks up any remainder rows from integer division
+        tWorkerData[i].uEndY = (i == THREAD_COUNT - 1) ? ptOutputFrameBuffer->uHeight : (i + 1) * uRowsPerThread;
+
+        ay_create_thread(upscale_worker_thread, &tWorkerData[i], &tThreads[i]);
+    }
+
+    for(int i = 0; i < THREAD_COUNT; i++)
+    {
+        ay_join_thread(tThreads[i]);
+        ay_destroy_thread(&tThreads[i]);
     }
 }
 

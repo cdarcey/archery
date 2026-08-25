@@ -65,6 +65,13 @@ typedef enum _ayDescriptorType
     AY_DESCRIPTOR_TYPE_STORAGE
 } ayDescriptorType;
 
+typedef enum _ayUpscaleFilter
+{
+    AY_UPSCALE_FILTER_NEAREST,
+    AY_UPSCALE_FILTER_BILINEAR,
+    AY_UPSCALE_FILTER_BICUBIC
+} ayUpscaleFilter;
+
 //-----------------------------------------------------------------------------
 // [SECTION] structs
 //-----------------------------------------------------------------------------
@@ -137,8 +144,9 @@ typedef struct _ayTileRenderInfo
 
 typedef struct _ayUpscaleInfo
 {
-    uint32_t uOutputWidth;
-    uint32_t uOutputHeight;
+    uint32_t        uOutputWidth;
+    uint32_t        uOutputHeight;
+    ayUpscaleFilter tFilter;
 } ayUpscaleInfo;
 
 typedef struct _ayCreateGraphicsInfo
@@ -192,6 +200,7 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 ayVec4 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 ayVec4 ay_extract_sprite_texture (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, int spriteX, int spriteY, int spriteWidth, int spriteHeight);
 ayVec4 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec4 ay_sample_texture_bicubic (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 
 // frame buffers
 void ay_bind_frame_buffer(ayGraphicsData*, ayFrameBufferData*);

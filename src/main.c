@@ -5,6 +5,7 @@
 #include "ay_rasterize_profile.h"
 
 #define bUpscaleEnabled true
+#define tUpscaleFilterUsed AY_UPSCALE_FILTER_BICUBIC
 
 // real output/window resolution, always the same regardless of the toggle
 #define outputWidth  1280
@@ -52,7 +53,8 @@ int main()
         .bUpscale       = bUpscaleEnabled,
         .tUpscaleSettings = {
             .uOutputWidth  = outputWidth,
-            .uOutputHeight = outputHeight
+            .uOutputHeight = outputHeight,
+            .tFilter       = tUpscaleFilterUsed
         }
     };
     ayGraphicsData* ptData = ay_initialize_graphics(&tGraphicsInfo);
