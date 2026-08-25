@@ -12,7 +12,6 @@ Archery is a CPU-based 3D renderer implementing the full graphics pipeline witho
 - Multi-threaded tile-based rendering (8 threads by default)
 - Triangle binning for efficient culling
 - Depth testing and backface culling
-- Perspective-correct interpolation
 - Custom vertex attribute layouts
 
 ## Status
@@ -158,5 +157,7 @@ Uses Win32 threading primitives with atomic work-stealing. Each worker thread:
 MIT License - Use freely for any purpose.
 
 ## Acknowledgments
+
+https://github.com/hoffstadt & https://github.com/PilotLightTech/pilotlight
 
 Built by following graphics programming fundamentals and studying production renderer architectures.
