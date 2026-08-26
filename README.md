@@ -4,13 +4,14 @@ A software rasterizer built from scratch to learn graphics programming fundament
 
 ## Overview
 
-Archery is a CPU-based 3D renderer implementing the full graphics pipeline without GPU acceleration. Started as a learning project, it has evolved into a functional prototype exploring low-level rendering techniques.
+Archery is a CPU based 3D renderer implementing the full graphics pipeline without GPU acceleration. Started as a learning project, it has evolved into a functional prototype exploring low level rendering techniques.
 
 ## Features
 
 - Software rasterization with programmable vertex and pixel shaders
-- Multi-threaded tile-based rendering (8 threads by default)
+- Multi-threaded tile based rendering via a persistent worker pool (8 threads by default)
 - Triangle binning for efficient culling
+- Optional internal resolution rendering with a threaded upscale pass (nearest, bilinear, or bicubic filtering)
 - Depth testing and backface culling
 - Custom vertex attribute layouts
 
@@ -21,7 +22,7 @@ Functional prototype. The core rendering pipeline works but the API and performa
 ## Platform Support
 
 - Windows (Win32) - Primary platform
-- Linux/macOS - Planned
+- Linux support is very spotty on any given build
 
 ## Dependencies
 
@@ -38,8 +39,13 @@ Build instructions coming soon. Currently uses custom batch scripts.
 #include <stdlib.h>
 #include "ay_rasterize.h"
 
-#define screenWidth  1280
-#define screenHeight 720
+// render resolution: what the rasterizer actually draws into
+#define screenWidth  640
+#define screenHeight 360
+
+// output/window resolution: what the upscale pass targets
+#define outputWidth  1280
+#define outputHeight 720
 
 ayVec4 color_gradient_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn);
 ayVec3 color_gradient_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut);
@@ -54,9 +60,23 @@ int main()
     };
     uint32_t quad_indices[] = {0, 1, 2, 2, 3, 0};
 
-    ayGraphicsData* ptData = initialize_graphics(screenWidth, screenHeight);
+    // tile rendering and upscaling are both opt-in via the create info struct
+    ayCreateGraphicsInfo tGraphicsInfo = {
+        .uScreenWidth   = screenWidth,
+        .uScreenHeight  = screenHeight,
+        .bTileRendering = true,
+        .bUpscale       = true,
+        .tUpscaleSettings = {
+            .uOutputWidth  = outputWidth,
+            .uOutputHeight = outputHeight,
+            .tFilter       = AY_UPSCALE_FILTER_BILINEAR
+        }
+    };
+    ayGraphicsData* ptData = ay_initialize_graphics(&tGraphicsInfo);
+
+    // framebuffer stays at render resolution, the window is the real output size
     ayFrameBufferData* ptFrameBuffer = ay_initialize_frame_buffer(screenWidth, screenHeight, true);
-    ayWindow* ptWindow = ay_create_window(screenWidth, screenHeight, "Archery Example");
+    ayWindow* ptWindow = ay_create_window(outputWidth, outputHeight, "Archery Example");
     
     ayPipeline quadPipeline = {
         .tVertexWinding = AY_VERTEX_WINDING_COUNTER_CLOCKWISE,
@@ -66,6 +86,7 @@ int main()
             .tAttribType = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3, AY_VERTEX_ATTRIBUTE_TYPE_VEC3},
             .szAttribOffset = {0, sizeof(float) * 3},
             .szVertexStride = sizeof(float) * 6,
+            .uVertexCount = 4
         }
     };
     
@@ -99,16 +120,20 @@ int main()
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &identity);
         ay_bind_pipeline(ptData, &quadPipeline);
         
-        ay_draw_indexed_tiled(ptData, 0, 6);
+        // tiling is picked up automatically from bTileRendering on the create info,
+        // no separate "_tiled" entry point needed
+        ay_draw_indexed(ptData, 0, 6);
         
-        ay_present_frame(ptWindow, ptFrameBuffer);
+        // upscale pass (render res -> output res) also happens automatically here
+        // since bUpscale was set on the create info
+        ay_present_frame(ptData, ptWindow);
     }
     
     ay_destroy_window(ptWindow);
+    ay_destroy_graphics(&ptData);
     free(ptFrameBuffer->pfDepthBuffer);
     free(ptFrameBuffer->auData);
     free(ptFrameBuffer);
-    free(ptData);
     
     return 0;
 }
@@ -143,14 +168,14 @@ ayVec3 color_gradient_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void
 2. Triangle binning determines which screen tiles each triangle overlaps
 3. Worker threads render tiles in parallel using local buffers
 4. Tiles are copied to the main framebuffer with critical section protection
+5. If upscaling is enabled, the native framebuffer is sampled (nearest/bilinear/bicubic) into a separate output resolution buffer before present
 
 ### Threading Model
 
-Uses Win32 threading primitives with atomic work-stealing. Each worker thread:
-- Atomically fetches the next tile index
-- Renders all triangles overlapping that tile
-- Copies result to main framebuffer under lock
-- Repeats until all tiles complete
+Uses Win32 threading primitives with a persistent worker pool created once at graphics init (rather than spawned per draw call). Both tiled rendering and upscaling dispatch work to the same pool:
+
+- **Tile rendering** uses atomic work-stealing: each worker atomically fetches the next unclaimed tile index, renders all triangles overlapping that tile, copies the result to the main framebuffer under a critical section, and repeats until all tiles are claimed. Since triangle density varies per tile, this keeps work balanced across threads regardless of scene distribution.
+- **Upscaling** uses a static split: each worker is assigned a fixed, disjoint band of output rows up front. Since every output pixel costs the same fixed amount of work, no dynamic claiming is needed and no locking is required between workers.
 
 ## License
 

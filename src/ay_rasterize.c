@@ -1409,7 +1409,10 @@ tile_worker_job(void* pJobData, uint32_t uWorkerIndex)
         // using critical sections since tiles could try to copy at the same time and frame buffer is shared
         ay_enter_critical_section(ptTileData->ptFramebufferLock); 
 
-        uint32_t uMinX, uMinY, uMaxX, uMaxY;
+        uint32_t uMinX = 0;
+        uint32_t uMinY = 0;
+        uint32_t uMaxX = 0;
+        uint32_t uMaxY = 0;
         ay_get_tile_bounds(ptTileData->ptData->ptTileRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
         ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
         

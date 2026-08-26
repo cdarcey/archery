@@ -2,6 +2,10 @@
    ay_rasterize.h
 */
 
+#define AY_RASTERIZE_VERSION_MAJOR 0
+#define AY_RASTERIZE_VERSION_MINOR 1
+#define AY_RASTERIZE_VERSION_PATCH 0
+
 /*
 Index of this file:
 // [SECTION] header mess
