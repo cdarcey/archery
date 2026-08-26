@@ -5,7 +5,7 @@
 #include "ay_rasterize_profile.h"
 
 #define bUpscaleEnabled true
-#define tUpscaleFilterUsed AY_UPSCALE_FILTER_BICUBIC
+#define tUpscaleFilterUsed AY_UPSCALE_FILTER_BILINEAR
 
 // real output/window resolution, always the same regardless of the toggle
 #define outputWidth  1280
@@ -23,17 +23,20 @@ ayVec3 texture_sample_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void
 
 int main()
 {
-    // fullscreen quad, position only (uv comes from tBuiltIns.tUV)
     float quad_vertices[] = {
         -1.0f, -1.0f, 0.5f,
          1.0f, -1.0f, 0.5f,
          1.0f,  1.0f, 0.5f,
-        -1.0f,  1.0f, 0.5f
+
+         1.0f,  1.0f, 0.5f,
+        -1.0f,  1.0f, 0.5f,
+        -1.0f, -1.0f, 0.5f
     };
     uint32_t quad_indices[] = {0, 1, 2, 2, 3, 0};
 
-    // placeholder path, drop any png here to test
-    int iTexWidth, iTexHeight;
+
+    int iTexWidth = 0;
+    int iTexHeight = 0;
     unsigned char* pucTexData = ay_load_png("../data/test.png", &iTexWidth, &iTexHeight);
     if(!pucTexData)
     {
@@ -69,7 +72,7 @@ int main()
             .tAttribType    = {AY_VERTEX_ATTRIBUTE_TYPE_VEC3},
             .szAttribOffset = {0},
             .szVertexStride = sizeof(float) * 3,
-            .uVertexCount   = 4
+            .uVertexCount   = 6
         }
     };
 
@@ -141,7 +144,7 @@ int main()
         ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_TEXTURE, &tTexture);
         ay_bind_pipeline(ptData, &texturePipeline);
 
-        ay_draw_indexed(ptData, 0, 6);
+        ay_draw(ptData, 0, 6);
 
         ay_present_frame(ptData, ptWindow);
     }

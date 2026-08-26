@@ -198,7 +198,6 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 
 // textures
 ayVec4 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
-ayVec4 ay_extract_sprite_texture (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, int spriteX, int spriteY, int spriteWidth, int spriteHeight);
 ayVec4 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 ayVec4 ay_sample_texture_bicubic (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 

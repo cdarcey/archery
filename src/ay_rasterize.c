@@ -5,6 +5,7 @@
 /*
 Index of this file:
 // [SECTION] includes
+// [SECTION] macros
 // [SECTION] internal structs
 // [SECTION] internal api
 // [SECTION] public api implementation
@@ -21,22 +22,25 @@ Index of this file:
 #include <string.h>
 #include <time.h>
 
-
 #include "ay_rasterize.h"
 #include "ay_threading.h"
 #define AY_RASTERIZE_PROFILE_ENABLED
 #include "ay_rasterize_profile.h"
 
+#include "stb_image_write.h"
+#include "stb_image.h"
+
 #ifdef AY_RASTERIZE_PROFILE_ENABLED
 ayDrawIndProfiler g_raster_profiler = {0};
 #endif
 
-// TODO: do we test for most optimal number or make this cconfigurable
+//-----------------------------------------------------------------------------
+// [SECTION] macros
+//-----------------------------------------------------------------------------
+
 #define THREAD_COUNT 8
-
-
-#include "stb_image_write.h"
-#include "stb_image.h"
+#define AY_MAX_TILE_SIZE 32
+#define AY_TILE_TRIANGLE_CAPACITY 100
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -50,12 +54,12 @@ typedef struct _ayTransformedVertex
 
 typedef struct _ayTileRenderer
 {
-    uint32_t uTileSize;          // 32x32
-    uint32_t uTilesX;            // 40 for 1280 width
-    uint32_t uTilesY;            // 23 for 720 height
-    uint32_t uTotalTiles;        // 920
-    uint32_t uFrameBufferWidth;  // 1280
-    uint32_t uFrameBufferHeight; // 720
+    uint32_t uTileSize;
+    uint32_t uTilesX;
+    uint32_t uTilesY;
+    uint32_t uTotalTiles;
+    uint32_t uFrameBufferWidth; 
+    uint32_t uFrameBufferHeight; 
 } ayTileRenderer;
 
 typedef struct _ayTileBins
@@ -63,7 +67,7 @@ typedef struct _ayTileBins
     uint32_t* uTriangleIndices;  // flat array of all triangle indices
     uint32_t* uCounts;           // triangles per tile
     uint32_t  uCapacity;         // max triangles per tile
-    uint32_t  uTotalTiles;       // 920
+    uint32_t  uTotalTiles;
 } ayTileBins;
 
 typedef struct _ayTileWorkerData
@@ -77,10 +81,30 @@ typedef struct _ayUpscaleWorkerData
 {
     ayFrameBufferData* ptInputFrameBuffer;
     ayFrameBufferData* ptOutputFrameBuffer;
-    ayUpscaleFilter     tFilter;
-    uint32_t           uStartY; // inclusive
-    uint32_t           uEndY;   // exclusive
+    ayUpscaleFilter    tFilter;
 } ayUpscaleWorkerData;
+
+typedef void (*ayJobFunction)(void* pJobData, uint32_t uWorkerIndex);
+
+typedef struct _ayThreadPool
+{
+    ayThread*            atThreads[THREAD_COUNT];
+    ayCriticalSection*   ptLock;
+    ayConditionVariable* ptWorkReady;
+    ayConditionVariable* ptWorkComplete;
+
+    ayJobFunction        ptCurrentJob;
+    void*                pCurrentJobData;
+    uint32_t             uGeneration;      // bumped each dispatch so workers know new work arrived
+    uint32_t             uWorkersPending;  // counts down to 0 as workers finish the current dispatch
+    bool                 bShutdown;
+} ayThreadPool;
+
+typedef struct _ayThreadPoolWorkerArgs
+{
+    ayThreadPool* ptPool;
+    uint32_t      uWorkerIndex;
+} ayThreadPoolWorkerArgs;
 
 typedef struct _ayGraphicsData
 {
@@ -89,46 +113,54 @@ typedef struct _ayGraphicsData
     ayPipeline*        ptPipeline;
     uint32_t*          puIndexBufferData;
     ayDescriptor       tDescriptors[16];
-
     uint32_t           uScreenWidth;
     uint32_t           uScreenHeight;
 
-    // tile rendering infrastructure (NULL if bTileRendering == false)
-    bool                    bTileRendering;
-    ayTileRenderer*         ptTileRenderer;
-    ayTileBins*             ptTileBins;
-    ayTransformedVertex*    pTransformedVertexCache;
-    size_t                  szTransformedVertexCapacity; // in vertex count, not bytes
-
-    // internal tile bounds (set by ay_render_tile_local for per-tile rendering)
-    uint32_t           uTileMinX;
-    uint32_t           uTileMinY;
-    uint32_t           uTileMaxX;
-    uint32_t           uTileMaxY;
+    // tile rendering (NULL if bTileRendering == false)
+    bool                 bTileRendering;
+    ayTileRenderer*      ptTileRenderer;
+    ayTileBins*          ptTileBins;
+    ayTransformedVertex* pTransformedVertexCache;
+    size_t               szTransformedVertexCapacity; // in vertex count, not bytes
+    uint32_t*            puSequentialIndexCache; // for faking an index buffer on non indexed draw calls
+    size_t               szSequentialIndexCapacity; // in index count, not bytes
+    uint32_t             uTileMinX;
+    uint32_t             uTileMinY;
+    uint32_t             uTileMaxX;
+    uint32_t             uTileMaxY;
 
     // upscaling (uOutputWidth/uOutputHeight both 0 if bUpscaling == false)
     bool            bUpscaling;
     ayUpscaleInfo   tUpscaleInfo;
     ayFrameBufferData* ptOutputFrameBuffer;
+
+    // multi threading
+    ayThreadPool* ptThreadPool;
 } ayGraphicsData;
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal forward decleration
 //-----------------------------------------------------------------------------
 
-void        ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
+static void*         thread_pool_worker(void* pData);
+static ayThreadPool* ay_create_thread_pool(void);
+static void          ay_destroy_thread_pool(ayThreadPool** ppPool);
+static void          ay_thread_pool_dispatch(ayThreadPool* ptPool, ayJobFunction ptJob, void* pJobData);
+
+static void ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
 static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
-void*       upscale_worker_thread(void* pData);
-static void ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter);
+static void tile_worker_job(void* pJobData, uint32_t uWorkerIndex);
+static void upscale_worker_job(void* pJobData, uint32_t uWorkerIndex);
+static void ay_upscale_frame_buffer(ayGraphicsData* ptData, ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter);
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal api
 //-----------------------------------------------------------------------------
 
 static inline float
-ay_edge_function(ayVec3 one, ayVec3 two, ayVec3 three)
+ay_edge_function(ayVec3 a, ayVec3 b, ayVec3 c)
 {
-    return(two.x - one.x) * (three.y - one.y) - (two.y - one.y) * (three.x - one.x);
+    return(b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
 };
 
 static inline int 
@@ -193,16 +225,16 @@ ay_run_vertex_shader(ayGraphicsData* ptData, uint32_t uIdx, const char* pcVtxBuf
 }
 
 static inline void 
-ay_ndc_to_screen(ayVec3* ayVert, uint32_t uWidth, uint32_t uHeight) 
+ay_ndc_to_screen(ayVec3* ptVertex, uint32_t uWidth, uint32_t uHeight) 
 {
-    ayVert->x = uWidth *  (0.5f + 0.5f * ayVert->x);
-    ayVert->y = uHeight * (0.5f + 0.5f * ayVert->y);
+    ptVertex->x = uWidth  * (0.5f + 0.5f * ptVertex->x);
+    ptVertex->y = uHeight * (0.5f + 0.5f * ptVertex->y);
 }
 
 static inline void 
-ay_blend_varying_component(float* dest, const float* v0, const float* v1, const float* v2, float wA, float wB, float wC) 
+ay_blend_varying_component(float* pfDestination, const float* v0, const float* v1, const float* v2, float wA, float wB, float wC) 
 {
-    *dest = v0[0] * wA + v1[0] * wB + v2[0] * wC;
+    *pfDestination = v0[0] * wA + v1[0] * wB + v2[0] * wC;
 }
 
 ayTileRenderer 
@@ -251,16 +283,20 @@ ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo)
     {
         // if tile rendering we allocate everything here and will free in graphics destroy function
         ptData->ptTileRenderer = malloc(sizeof(ayTileRenderer));
+        memset(ptData->ptTileRenderer, 0, sizeof(ayTileRenderer));
         *ptData->ptTileRenderer = ay_init_tile_renderer(ptCreateGraphicsInfo->uScreenWidth, ptCreateGraphicsInfo->uScreenHeight, ptCreateGraphicsInfo->tTileSettings.uTileSize);
         
         ptData->ptTileBins = malloc(sizeof(ayTileBins));
         memset(ptData->ptTileBins, 0, sizeof(ayTileBins));
         
-        ptData->ptTileBins->uCapacity = 100;
+        // TODO: decide if this should be configurable to give more granular control to the API user
+        ptData->ptTileBins->uCapacity = AY_TILE_TRIANGLE_CAPACITY;
         ptData->ptTileBins->uTotalTiles = ptData->ptTileRenderer->uTotalTiles;
         
         ptData->ptTileBins->uCounts = malloc(sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles);
+        memset(ptData->ptTileBins->uCounts, 0, (sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles));
         ptData->ptTileBins->uTriangleIndices = malloc(sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles * ptData->ptTileBins->uCapacity);
+        memset(ptData->ptTileBins->uTriangleIndices, 0, (sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles * ptData->ptTileBins->uCapacity));
         
         // transformed vertex cache starts NULL, grows on first draw
         ptData->pTransformedVertexCache = NULL;
@@ -274,11 +310,14 @@ ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo)
         ptData->tUpscaleInfo = ptCreateGraphicsInfo->tUpscaleSettings;
 
         // no depth needed, upscale pass only writes color
-        ptData->ptOutputFrameBuffer = ay_initialize_frame_buffer(
-            ptCreateGraphicsInfo->tUpscaleSettings.uOutputWidth,
-            ptCreateGraphicsInfo->tUpscaleSettings.uOutputHeight,
-            false
-        );
+        ptData->ptOutputFrameBuffer = ay_initialize_frame_buffer(ptCreateGraphicsInfo->tUpscaleSettings.uOutputWidth, ptCreateGraphicsInfo->tUpscaleSettings.uOutputHeight, false);
+    }
+
+    // persistent pool is shared by both tile rendering and upscaling, only
+    // created if at least one of them actually needs threaded work
+    if(ptCreateGraphicsInfo->bTileRendering || ptCreateGraphicsInfo->bUpscale)
+    {
+        ptData->ptThreadPool = ay_create_thread_pool();
     }
 
     return ptData;
@@ -291,9 +330,16 @@ ay_destroy_graphics(ayGraphicsData** ppData)
     
     ayGraphicsData* ptData = *ppData;
     
+    // shut down and join all pool threads first, before freeing anything they could touch
+    if(ptData->ptThreadPool)
+    {
+        ay_destroy_thread_pool(&ptData->ptThreadPool);
+    }
+    
     if(ptData->bTileRendering)
     {
         free(ptData->pTransformedVertexCache);
+        free(ptData->puSequentialIndexCache);
         
         if(ptData->ptTileBins)
         {
@@ -319,12 +365,13 @@ ay_destroy_graphics(ayGraphicsData** ppData)
 ayWindow* 
 ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
 {
-    ayWindow* tNewWindow = malloc(sizeof(ayWindow));
-    if(!tNewWindow) return NULL;
+    ayWindow* ptNewWindow = malloc(sizeof(ayWindow));
+    if(!ptNewWindow) return NULL;
+    memset(ptNewWindow, 0, (sizeof(ayWindow)));
 
     glfwInit();
-    tNewWindow->pWindow = glfwCreateWindow(uWidth, uHeight, pcTitle, NULL, NULL);
-    glfwMakeContextCurrent(tNewWindow->pWindow);
+    ptNewWindow->pWindow = glfwCreateWindow(uWidth, uHeight, pcTitle, NULL, NULL);
+    glfwMakeContextCurrent(ptNewWindow->pWindow);
 
     // set up OpenGL for 2D rendering
     glViewport(0, 0, uWidth, uHeight);
@@ -335,18 +382,18 @@ ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
     glLoadIdentity();
 
     // create OpenGL texture for framebuffer
-    glGenTextures(1, &tNewWindow->uframebufferTexture);
-    glBindTexture(GL_TEXTURE_2D, tNewWindow->uframebufferTexture);
+    glGenTextures(1, &ptNewWindow->uframebufferTexture);
+    glBindTexture(GL_TEXTURE_2D, ptNewWindow->uframebufferTexture);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, uWidth, uHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glBindTexture(GL_TEXTURE_2D, 0);
 
     // store values
-    tNewWindow->uWidth  = uWidth;
-    tNewWindow->uHeight = uHeight;
+    ptNewWindow->uWidth  = uWidth;
+    ptNewWindow->uHeight = uHeight;
 
-    return tNewWindow;
+    return ptNewWindow;
 }
 
 void
@@ -369,12 +416,13 @@ ay_window_should_close(ayWindow* ptWindow)
 void 
 ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow)
 {
+    if(!ptData || !ptWindow) return;
     ayFrameBufferData* ptSourceBuffer = ptData->ptFrameBufferData;
 
     if(ptData->bUpscaling)
     {
         PROFILE_START(UpscalePass);
-        ay_upscale_frame_buffer(ptData->ptFrameBufferData, ptData->ptOutputFrameBuffer, ptData->tUpscaleInfo.tFilter);
+        ay_upscale_frame_buffer(ptData, ptData->ptFrameBufferData, ptData->ptOutputFrameBuffer, ptData->tUpscaleInfo.tFilter);
         PROFILE_END(UpscalePass);
         ptSourceBuffer = ptData->ptOutputFrameBuffer;
     }
@@ -431,11 +479,14 @@ ay_bind_descriptor(ayGraphicsData* ptData, uint32_t uBinding, ayDescriptorType e
 void
 ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLocalDB, uint32_t uTileIndex)
 {
-    // get tile bounds from renderer
-    uint32_t uMinX, uMinY, uMaxX, uMaxY;
+    uint32_t uMinX = 0; 
+    uint32_t uMinY = 0;
+    uint32_t uMaxX = 0;
+    uint32_t uMaxY = 0;
+
     ay_get_tile_bounds(tDataCopy.ptTileRenderer, uTileIndex, &uMinX, &uMinY, &uMaxX, &uMaxY);
 
-    // create tile local frame buffer for ptDatatCopy to point to 
+    // create tile local frame buffer for ptDatatCopy to point to & create bins index buffer
     ayFrameBufferData tTileData = {0};
     tTileData.bDepthEnabled = tDataCopy.ptFrameBufferData->bDepthEnabled;
     tTileData.auData        = auLocalFB;
@@ -443,13 +494,11 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     tTileData.uHeight       = uMaxY - uMinY;
     tTileData.uWidth        = uMaxX - uMinX;
 
-    // create bins index buffer
     uint32_t uBinStart = uTileIndex * tDataCopy.ptTileBins->uCapacity;
     uint32_t uTriangleCount = tDataCopy.ptTileBins->uCounts[uTileIndex];
 
-    // TODO: these buffers probably shouldnt be hard coded 
-    // tied to triangle bin capacity so both need to match 
-    uint32_t auTileIndexBuffer[300] = {0}; 
+    // tied to AY_TILE_TRIANGLE_CAPACITY so this can never drift out of sync with bin capacity
+    uint32_t auTileIndexBuffer[AY_TILE_TRIANGLE_CAPACITY * 3] = {0};
 
     for(uint32_t i = 0; i < uTriangleCount; i++) 
     {
@@ -478,7 +527,6 @@ ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMi
     uint32_t uTileWidth = uMaxX - uMinX;
     uint32_t uTileHeight = uMaxY - uMinY;
     
-    // copy row by row
     for(uint32_t i = 0; i < uTileHeight; i++) 
     {
         uint32_t uSrcOffset = i * uTileWidth * 4;  // local FB is tileWidth wide
@@ -488,10 +536,9 @@ ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMi
     }
 }
 
-void
+bool
 ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIndex)
 {
-    // clear bins for reuse
     memset(ptData->ptTileBins->uCounts, 0, sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles);
 
     // check/grow transformed vertex cache will eventually match largest mesh per frame
@@ -500,8 +547,13 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
     size_t uNeededCapacity = ptData->ptPipeline->tLayout.uVertexCount;
     if(uNeededCapacity > ptData->szTransformedVertexCapacity)
     {
-        ptData->pTransformedVertexCache = realloc(ptData->pTransformedVertexCache, uNeededCapacity * sizeof(ayTransformedVertex));
-        // TODO: do we need check for success here? 
+        // realloc into a temp pointer first: on failure the original allocation is
+        // still valid and must not be overwritten/leaked
+        void* pNewCache = realloc(ptData->pTransformedVertexCache, uNeededCapacity * sizeof(ayTransformedVertex));
+        if(!pNewCache)
+            return false;
+
+        ptData->pTransformedVertexCache = pNewCache;
         ptData->szTransformedVertexCapacity = uNeededCapacity;
     }
     
@@ -543,7 +595,7 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
         uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
 
-        // create bounding box of tiles not pixel bounding boxes like used in rasterizer
+        // create bounding box of TILES not pixel bounding boxes like used in rasterizer
         uint32_t uStartTileX = uTriMinX / ptData->ptTileRenderer->uTileSize;
         uint32_t uStartTileY = uTriMinY / ptData->ptTileRenderer->uTileSize;
         uint32_t uStopTileX = uTriMaxX / ptData->ptTileRenderer->uTileSize;
@@ -551,7 +603,6 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
         uStopTileX = ay_min(ptData->ptTileRenderer->uTilesX - 1, uStopTileX);
         uStopTileY = ay_min(ptData->ptTileRenderer->uTilesY - 1, uStopTileY);
 
-        // bin triangle to overlapping tiles
         for(uint32_t uY = uStartTileY; uY <= uStopTileY; uY++)
         {
             for(uint32_t uX = uStartTileX; uX <= uStopTileX; uX++)
@@ -568,311 +619,42 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
             }
         }
     }
+
+    return true;
 }
 
 void
 ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 {
-    bool bTiledRendering = ptData->bTileRendering;
-
-    // set winding sign (CW need negative, CCW needs positive barycentric coords)
-    float fWindingSign = (ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) ? 1.0f : -1.0f;
-
-    // calculate frame buffer size and cache pointers
-    const uint32_t fbWidth = ptData->ptFrameBufferData->uWidth;
-    const uint32_t fbHeight = ptData->ptFrameBufferData->uHeight;
-    float* pfDepthBuffer = ptData->ptFrameBufferData->pfDepthBuffer;
-
-    ayTransformedVertex* transformedVerts = NULL;
-    if(bTiledRendering) 
+    // ay_draw has no real index buffer to bin/tile against, so synthesize an
+    // identity one (uFirstVertex, uFirstVertex+1, ...) and delegate straight
+    // to ay_draw_indexed, which already has correct tiled/non-tiled dispatch.
+    // this avoids a third copy of the rasterization loop and gives ay_draw
+    // full tiling support for free.
+    if(uVertexCount > ptData->szSequentialIndexCapacity)
     {
-        transformedVerts = ptData->pTransformedVertexCache;
+        void* pNewCache = realloc(ptData->puSequentialIndexCache, uVertexCount * sizeof(uint32_t));
+        if(!pNewCache)
+            return;
+
+        ptData->puSequentialIndexCache = pNewCache;
+        ptData->szSequentialIndexCapacity = uVertexCount;
     }
 
-    for(uint32_t i = 0; i < uVertexCount; i += 3)
-    {
-        const uint32_t uIndex0 = uFirstVertex + i;
-        const uint32_t uIndex1 = uFirstVertex + i + 1;
-        const uint32_t uIndex2 = uFirstVertex + i + 2;
+    for(uint32_t i = 0; i < uVertexCount; i++)
+        ptData->puSequentialIndexCache[i] = uFirstVertex + i;
 
-        ayVec3 tVertex0;
-        ayVec3 tVertex1;
-        ayVec3 tVertex2;
-        ayVaryingData tVaryingData0 = {0};
-        ayVaryingData tVaryingData1 = {0};
-        ayVaryingData tVaryingData2 = {0};
+    // stash and restore in case the caller had a real index buffer bound
+    // (e.g. mixing ay_draw and ay_draw_indexed calls on the same ptData)
+    uint32_t* puPreviousIndexBuffer = ptData->puIndexBufferData;
+    ptData->puIndexBufferData = ptData->puSequentialIndexCache;
 
-        if(bTiledRendering) // tiled path - read from cache
-        {
-            tVertex0 = transformedVerts[uIndex0].tScreenPos;
-            tVertex1 = transformedVerts[uIndex1].tScreenPos;
-            tVertex2 = transformedVerts[uIndex2].tScreenPos;
-            
-            tVaryingData0 = transformedVerts[uIndex0].tVaryings;
-            tVaryingData1 = transformedVerts[uIndex1].tVaryings;
-            tVaryingData2 = transformedVerts[uIndex2].tVaryings;
-        }
-        else // non-tiled path - run vertex shader
-        {
-            const char* pcVtxBuffer = (char*)ptData->pVerticies;
-            
-            tVertex0 = ay_run_vertex_shader(ptData, uIndex0, pcVtxBuffer, &tVaryingData0);
-            tVertex1 = ay_run_vertex_shader(ptData, uIndex1, pcVtxBuffer, &tVaryingData1);
-            tVertex2 = ay_run_vertex_shader(ptData, uIndex2, pcVtxBuffer, &tVaryingData2);
+    ay_draw_indexed(ptData, 0, uVertexCount);
 
-            // frame buffer space transformation
-            ay_ndc_to_screen(&tVertex0, fbWidth, fbHeight);
-            ay_ndc_to_screen(&tVertex1, fbWidth, fbHeight);
-            ay_ndc_to_screen(&tVertex2, fbWidth, fbHeight);
-        }
-
-        // edge function for entire triangle 
-        float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
-
-        // cull backfaces based on winding
-        if(ABC > 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_CLOCKWISE) continue;
-        if(ABC < 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_COUNTER_CLOCKWISE) continue;
-        if(ABC == 0) continue;  // degenerate triangle
-
-        // Bounding box with clamping
-        uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
-        uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
-        uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
-        uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
-        
-        // expand triangle bounds by 1 pix to ensure we dont miss data
-        if(uTriMinX > 0) uTriMinX -= 1;
-        if(uTriMinY > 0) uTriMinY -= 1;
-        uTriMaxX += 1;
-        uTriMaxY += 1;
-
-        // clamp to screen bounds
-        uTriMinX = ay_max(0, uTriMinX);
-        uTriMinY = ay_max(0, uTriMinY);
-        uTriMaxX = ay_min(ptData->uScreenWidth, uTriMaxX);
-        uTriMaxY = ay_min(ptData->uScreenHeight, uTriMaxY);
-
-        // if tiled rendering, clamp to tile bounds
-        if(bTiledRendering) 
-        {
-            uTriMinX = ay_max(ptData->uTileMinX, uTriMinX);
-            uTriMinY = ay_max(ptData->uTileMinY, uTriMinY);
-            uTriMaxX = ay_min(ptData->uTileMaxX, uTriMaxX);
-            uTriMaxY = ay_min(ptData->uTileMaxY, uTriMaxY);
-            
-            // early out if triangle doesn't overlap tile at all
-            if(uTriMinX >= uTriMaxX || uTriMinY >= uTriMaxY) continue;
-        }
-
-        const uint32_t minX = uTriMinX;
-        const uint32_t minY = uTriMinY;
-        const uint32_t maxX = uTriMaxX;
-        const uint32_t maxY = uTriMaxY;
-
-        // precompute edge function coefficients
-        float ABa, ABb, ABc, BCa, BCb, BCc, CAa, CAb, CAc;
-        ay_compute_edge_coeffs(tVertex0, tVertex1, &ABa, &ABb, &ABc);
-        ay_compute_edge_coeffs(tVertex1, tVertex2, &BCa, &BCb, &BCc);
-        ay_compute_edge_coeffs(tVertex2, tVertex0, &CAa, &CAb, &CAc);
-
-        // apply winding sign to coefficients
-        ABa *= fWindingSign;
-        BCa *= fWindingSign;
-        CAa *= fWindingSign;
-
-        ABb *= fWindingSign;
-        BCb *= fWindingSign;
-        CAb *= fWindingSign;
-
-        // initialize at start of row
-        float ABP = (ABa * minX + ABb * minY + ABc) * fWindingSign;
-        float BCP = (BCa * minX + BCb * minY + BCc) * fWindingSign;
-        float CAP = (CAa * minX + CAb * minY + CAc) * fWindingSign;
-
-        const float invABC = 1.0f / ABC;
-
-        // varying system
-        int varyDataOffset = 0;
-        ayVaryingData blendedVaryingData = {0};
-
-        for(uint32_t j = 0; j < 16; j++)
-        {
-            blendedVaryingData._auOffset[j] = tVaryingData0._auOffset[j];
-            blendedVaryingData.atTypes[j] = tVaryingData0.atTypes[j];
-        }
-
-        int iVaryingCount = 0;
-        for(int varyIndex = 0; varyIndex < 16; varyIndex++)
-        {
-            if(tVaryingData0.atTypes[varyIndex] == AY_VARYING_TYPE_NONE)
-                break;
-            iVaryingCount++;
-        }
-
-        int iCompCount[16] = {0};
-        for(uint32_t k = 0; k < iVaryingCount; k++)
-        {
-            ayVaryingType type = tVaryingData0.atTypes[k];
-
-            if    (type == AY_VARYING_TYPE_FLOAT) iCompCount[k] = 1;
-            else if(type == AY_VARYING_TYPE_VEC2) iCompCount[k] = 2;
-            else if(type == AY_VARYING_TYPE_VEC3) iCompCount[k] = 3;
-            else if(type == AY_VARYING_TYPE_VEC4) iCompCount[k] = 4;
-        }
-
-        // depth index for tiled or non tiled
-        uint32_t uDepthIndex;
-        if(bTiledRendering) 
-        {
-            uDepthIndex = 0;  // start at beginning of tile buffer
-        } 
-        else 
-        {
-            uDepthIndex = minY * fbWidth + minX;
-        }
-
-        if(ptData->ptFrameBufferData->bDepthEnabled)
-        {
-            for(uint32_t y = minY; y < maxY; y++)
-            {
-                uint32_t uRowDepthIndex = uDepthIndex;
-                float rowABP = ABP;
-                float rowBCP = BCP;
-                float rowCAP = CAP;
-
-                for(uint32_t x = minX; x < maxX; x++)
-                {
-                    if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
-                    {
-                        // for tiled or not tiled drawing
-                        uint32_t uLocalX = x - ptData->uTileMinX;
-                        uint32_t uLocalY = y - ptData->uTileMinY;
-                        uint32_t uBufferDepthIndex = bTiledRendering ? (uLocalY * fbWidth + uLocalX) : uRowDepthIndex;
-
-                        varyDataOffset = 0;
-
-                        const float weightA = rowBCP * invABC;
-                        const float weightB = rowCAP * invABC;
-                        const float weightC = rowABP * invABC;
-
-                        ayPixelShaderBuiltIns tBuiltIns = {
-                            .tUV = {x, y}
-                        };
-
-                        for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
-                        {
-                            int componentCount = iCompCount[varyIndex];
-                            if(componentCount > 0)
-                            {
-                                const float* v0 = (const float*)&tVaryingData0.acVaryingData[varyDataOffset];
-                                const float* v1 = (const float*)&tVaryingData1.acVaryingData[varyDataOffset];
-                                const float* v2 = (const float*)&tVaryingData2.acVaryingData[varyDataOffset];
-                                float* dest = (float*)&blendedVaryingData.acVaryingData[varyDataOffset];
-
-                                for(int c = 0; c < componentCount; c++)
-                                {
-                                    dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
-                                }
-                                varyDataOffset += componentCount * sizeof(float);
-                            }
-                        }
-
-                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
-
-                        if(fPixelDepth > pfDepthBuffer[uBufferDepthIndex]) 
-                        {
-                            ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
-                            float alphaScale = tFinalColor.a / 255.0f;
-                            tFinalColor.r *= alphaScale;
-                            tFinalColor.g *= alphaScale;
-                            tFinalColor.b *= alphaScale;
-                            
-                            ayVec2 tWritePos = bTiledRendering ? (ayVec2){uLocalX, uLocalY} : (ayVec2){x, y};
-                            ay_set_pixel(ptData->ptFrameBufferData, tWritePos, tFinalColor);
-
-                            pfDepthBuffer[uBufferDepthIndex] = fPixelDepth;
-                        }
-                    }
-                    // incrementally update edge functions for next pixel in row
-                    rowABP += ABa;
-                    rowBCP += BCa;
-                    rowCAP += CAa;
-                    uRowDepthIndex += 1;
-                }
-                // incrementally update edge functions for next row
-                ABP += ABb;
-                BCP += BCb;
-                CAP += CAb;
-                uDepthIndex += fbWidth;
-            }
-        }
-        else
-        {
-            for(uint32_t y = minY; y < maxY; y++)
-            {
-                float rowABP = ABP;
-                float rowBCP = BCP;
-                float rowCAP = CAP;
-
-                for(uint32_t x = minX; x < maxX; x++)
-                {
-                    if(rowABP >= 0 && rowBCP >= 0 && rowCAP >= 0)
-                    {
-                        uint32_t uLocalX = x - ptData->uTileMinX;
-                        uint32_t uLocalY = y - ptData->uTileMinY;
-                        
-                        varyDataOffset = 0;
-
-                        const float weightA = rowBCP * invABC;
-                        const float weightB = rowCAP * invABC;
-                        const float weightC = rowABP * invABC;
-
-                        ayPixelShaderBuiltIns tBuiltIns = {
-                            .tUV = {x, y}
-                        };
-
-                        for(int varyIndex = 0; varyIndex < iVaryingCount; varyIndex++)
-                        {
-                            int componentCount = iCompCount[varyIndex];
-                            if(componentCount > 0)
-                            {
-                                const float* v0 = (const float*)&tVaryingData0.acVaryingData[varyDataOffset];
-                                const float* v1 = (const float*)&tVaryingData1.acVaryingData[varyDataOffset];
-                                const float* v2 = (const float*)&tVaryingData2.acVaryingData[varyDataOffset];
-                                float* dest = (float*)&blendedVaryingData.acVaryingData[varyDataOffset];
-
-                                for(int c = 0; c < componentCount; c++)
-                                {
-                                    dest[c] = v0[c] * weightA + v1[c] * weightB + v2[c] * weightC;
-                                }
-                                varyDataOffset += componentCount * sizeof(float);
-                            }
-                        }
-
-                        ayVec4 tFinalColor = ptData->ptPipeline->tPixelShader(tBuiltIns, ptData->tDescriptors, &blendedVaryingData);
-                        float alphaScale = tFinalColor.a / 255.0f;
-                        tFinalColor.r *= alphaScale;
-                        tFinalColor.g *= alphaScale;
-                        tFinalColor.b *= alphaScale;
-                        
-                        ayVec2 tWritePos = bTiledRendering ? (ayVec2){uLocalX, uLocalY} : (ayVec2){x, y};
-                        ay_set_pixel(ptData->ptFrameBufferData, tWritePos, tFinalColor);
-                    }
-                    // incrementally update edge functions for next pixel in row
-                    rowABP += ABa;
-                    rowBCP += BCa;
-                    rowCAP += CAa;
-                }
-                // incrementally update edge functions for next row
-                ABP += ABb;
-                BCP += BCb;
-                CAP += CAb;
-            }
-        }
-    }
+    ptData->puIndexBufferData = puPreviousIndexBuffer;
 }
 
-void 
+static void 
 ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
     bool bTiledRendering = ptData->bTileRendering;
@@ -929,7 +711,6 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
             ay_ndc_to_screen(&tVertex2, ptData->uScreenWidth, ptData->uScreenHeight);
         }
 
-        // edge function for entire triangle 
         float ABC = (float)ay_edge_function(tVertex0, tVertex1, tVertex2);
 
         // cull backfaces based on winding
@@ -937,25 +718,21 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
         if(ABC < 0 && ptData->ptPipeline->tVertexWinding == AY_VERTEX_WINDING_COUNTER_CLOCKWISE) continue;
         if(ABC == 0) continue;  // degenerate triangle
 
-        // get triangle bounding box
         uint32_t uTriMinX = ay_min3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMinY = ay_min3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
         uint32_t uTriMaxX = ay_max3((uint32_t)tVertex0.x, (uint32_t)tVertex1.x, (uint32_t)tVertex2.x);
         uint32_t uTriMaxY = ay_max3((uint32_t)tVertex0.y, (uint32_t)tVertex1.y, (uint32_t)tVertex2.y);
         
-        // expand triangle bounds by 1 pix to ensure we dont miss data
         if(uTriMinX > 0) uTriMinX -= 1;
         if(uTriMinY > 0) uTriMinY -= 1;
         uTriMaxX += 1;
         uTriMaxY += 1;
 
-        // clamp to screen bounds
         uTriMinX = ay_max(0, uTriMinX);
         uTriMinY = ay_max(0, uTriMinY);
         uTriMaxX = ay_min(ptData->uScreenWidth, uTriMaxX);
         uTriMaxY = ay_min(ptData->uScreenHeight, uTriMaxY);
 
-        // if tiled rendering, clamp to tile bounds
         if(bTiledRendering) 
         {
             uTriMinX = ay_max(ptData->uTileMinX, uTriMinX);
@@ -987,7 +764,6 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
         BCb *= fWindingSign;
         CAb *= fWindingSign;
 
-        // initialize at start of row
         float ABP = (ABa * minX + ABb * minY + ABc) * fWindingSign;
         float BCP = (BCa * minX + BCb * minY + BCc) * fWindingSign;
         float CAP = (CAa * minX + CAb * minY + CAc) * fWindingSign;
@@ -1057,7 +833,6 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
                         // reset offset for every new pixel
                         iVaryDataOffset = 0; 
 
-                        // calculate weights
                         const float weightA = rowBCP * invABC;
                         const float weightB = rowCAP * invABC;
                         const float weightC = rowABP * invABC;
@@ -1104,7 +879,7 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
                             pfDepthBuffer[uBufferDepthIndex] = fPixelDepth;
                         }
                     }
-                    // incrementally update edge functions for next pixel in row
+                    // incrementally update edge functions for next pixel
                     rowABP += ABa;
                     rowBCP += BCa;
                     rowCAP += CAa;
@@ -1170,7 +945,7 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
                         ayVec2 tWritePos = bTiledRendering ? (ayVec2){uLocalX, uLocalY} : (ayVec2){x, y};
                         ay_set_pixel(ptData->ptFrameBufferData, tWritePos, tFinalColor);
                     }
-                    // incrementally update edge functions for next pixel in row
+                    // incrementally update edge functions for next pixel
                     rowABP += ABa;
                     rowBCP += BCa;
                     rowCAP += CAa;
@@ -1185,41 +960,6 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
     }
 }
 
-void* 
-tile_worker_thread(void* pData) 
-{
-    ayTileWorkerData* ptTileData = (ayTileWorkerData*)pData;
-
-    while(true)
-    {
-        uint32_t uTileInd = ay_atomic_fetch_add(ptTileData->ptNextTileIndex, 1);
-        
-        if(uTileInd >= ptTileData->ptData->ptTileRenderer->uTotalTiles)
-            break;
-
-        // tile local buffers
-        // TODO: make configureable and remove hard coded values
-        uint8_t auLocalFB[32 * 32 * 4];
-        float   afLocalDB[32 * 32];
-        memset(auLocalFB, 255, sizeof(auLocalFB));
-        memset(afLocalDB, 0, sizeof(afLocalDB));
-
-        // render tile
-        ay_render_tile_local(*ptTileData->ptData, auLocalFB, afLocalDB, uTileInd);
-    
-        // using critical sections since tiles could try to copy at the same time and frame buffer is shared
-        ay_enter_critical_section(ptTileData->ptFramebufferLock); 
-
-        uint32_t uMinX, uMinY, uMaxX, uMaxY;
-        ay_get_tile_bounds(ptTileData->ptData->ptTileRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
-        ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
-        
-        ay_leave_critical_section(ptTileData->ptFramebufferLock); 
-    }
-    
-    return NULL;
-}
-
 void 
 ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
@@ -1230,42 +970,33 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
         // not in a specific tile, we are using atomic counter for
         // tracking the tile we are currently on and the critical 
         // section prevents race conditions when copying tile to 
-        // frame buffer then join all threads and clean up
-        // TODO: address if we want to give threads a global lifespan 
-        ay_bin_triangles(ptData, uIndexCount, uFirstIndex);
-
-        ayAtomicCounter* tTileCounter;
-        if(ay_create_atomic_counter(0, &tTileCounter) != AY_ATOMICS_RESULT_SUCCESS) 
+        // frame buffer
+        if(!ay_bin_triangles(ptData, uIndexCount, uFirstIndex))
             return;
 
-        ayCriticalSection* tCriticalSection;
-        if(ay_create_critical_section(&tCriticalSection) != AY_THREAD_RESULT_SUCCESS)
+        ayAtomicCounter* ptTileCounter;
+        if(ay_create_atomic_counter(0, &ptTileCounter) != AY_ATOMICS_RESULT_SUCCESS) 
+            return;
+
+        ayCriticalSection* ptCriticalSection;
+        if(ay_create_critical_section(&ptCriticalSection) != AY_THREAD_RESULT_SUCCESS)
         {
-            ay_destroy_atomic_counter(&tTileCounter);
+            ay_destroy_atomic_counter(&ptTileCounter);
             return;
         }
 
         ayTileWorkerData tTileData = {
             .ptData            = ptData,
-            .ptNextTileIndex   = tTileCounter,
-            .ptFramebufferLock = tCriticalSection
+            .ptNextTileIndex   = ptTileCounter,
+            .ptFramebufferLock = ptCriticalSection
         };
 
-        ayThread* tThreads[THREAD_COUNT];
-        for(int i = 0; i < THREAD_COUNT; i++)
-        {
-            ay_create_thread(tile_worker_thread, &tTileData, &tThreads[i]);
-        }
+        // dispatched to the persistent pool created at graphics init, threads
+        // are reused rather than spawned/joined on every draw call
+        ay_thread_pool_dispatch(ptData->ptThreadPool, tile_worker_job, &tTileData);
 
-        // wait for all threads to complete
-        for(int i = 0; i < THREAD_COUNT; i++)
-        {
-            ay_join_thread(tThreads[i]);
-            ay_destroy_thread(&tThreads[i]);
-        }
-
-        ay_destroy_atomic_counter(&tTileCounter);
-        ay_destroy_critical_section(&tCriticalSection);
+        ay_destroy_atomic_counter(&ptTileCounter);
+        ay_destroy_critical_section(&ptCriticalSection);
     }
     else
     {
@@ -1304,6 +1035,7 @@ ayFrameBufferData*
 ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled)
 {
     ayFrameBufferData* ptData = malloc(sizeof(ayFrameBufferData));
+    if(!ptData) return NULL;
     memset(ptData, 0, sizeof(ayFrameBufferData));
 
     ptData->uWidth = uWidth;
@@ -1313,7 +1045,7 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled
 
     if(bDepthEnabled)
     {
-        // 0 is our clear value for depth buffer
+        // 0 is our clear value for depth buffer (faster)
         ptData->bDepthEnabled = bDepthEnabled;
         ptData->pfDepthBuffer = malloc(sizeof(float) * uHeight * uWidth);
         memset(ptData->pfDepthBuffer, 0, ptData->uWidth * ptData->uHeight * sizeof(float));
@@ -1325,6 +1057,7 @@ ay_initialize_frame_buffer(uint32_t uWidth, uint32_t uHeight, bool bDepthEnabled
 void
 ay_output_frame_buffer(ayFrameBufferData* ptData)
 {
+    // leaving in for debug purposes
     stbi_write_png("output.png", ptData->uWidth, ptData->uHeight, 4, ptData->auData, sizeof(char) * 4 * ptData->uWidth);
 };
 
@@ -1335,7 +1068,7 @@ ay_clear_frame_buffer(ayFrameBufferData* ptData)
         
     if(ptData->bDepthEnabled && ptData->pfDepthBuffer)
     {
-        // depth buffer clear value is 0
+        // depth buffer clear value is 0 (faster)
         memset(ptData->pfDepthBuffer, 0, ptData->uWidth * ptData->uHeight * sizeof(float));
     }
 }
@@ -1530,6 +1263,105 @@ ay_sample_texture_bicubic(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents)
 // [SECTION] internal api implementation
 //-----------------------------------------------------------------------------
 
+void*
+thread_pool_worker(void* pData)
+{
+    ayThreadPoolWorkerArgs* ptArgs = (ayThreadPoolWorkerArgs*)pData;
+    ayThreadPool* ptPool = ptArgs->ptPool;
+    uint32_t uLastSeenGeneration = 0;
+
+    ay_enter_critical_section(ptPool->ptLock);
+    while(true)
+    {
+        // sleep until the dispatcher bumps the generation (new work) or asks us to shut down
+        while(ptPool->uGeneration == uLastSeenGeneration && !ptPool->bShutdown)
+            ay_condition_wait(ptPool->ptWorkReady, ptPool->ptLock);
+
+        if(ptPool->bShutdown)
+            break;
+
+        uLastSeenGeneration = ptPool->uGeneration;
+        ayJobFunction ptJob = ptPool->ptCurrentJob;
+        void* pJobData = ptPool->pCurrentJobData;
+
+        ay_leave_critical_section(ptPool->ptLock);
+        ptJob(pJobData, ptArgs->uWorkerIndex);
+        ay_enter_critical_section(ptPool->ptLock);
+
+        ptPool->uWorkersPending--;
+        if(ptPool->uWorkersPending == 0)
+            ay_condition_signal(ptPool->ptWorkComplete);
+    }
+    ay_leave_critical_section(ptPool->ptLock);
+
+    free(ptArgs);
+    return NULL;
+}
+
+static ayThreadPool*
+ay_create_thread_pool(void)
+{
+    ayThreadPool* ptPool = malloc(sizeof(ayThreadPool));
+    memset(ptPool, 0, sizeof(ayThreadPool));
+
+    ay_create_critical_section(&ptPool->ptLock);
+    ay_create_condition(&ptPool->ptWorkReady);
+    ay_create_condition(&ptPool->ptWorkComplete);
+
+    for(int i = 0; i < THREAD_COUNT; i++)
+    {
+        ayThreadPoolWorkerArgs* ptArgs = malloc(sizeof(ayThreadPoolWorkerArgs));
+        ptArgs->ptPool = ptPool;
+        ptArgs->uWorkerIndex = i;
+        ay_create_thread(thread_pool_worker, ptArgs, &ptPool->atThreads[i]);
+    }
+
+    return ptPool;
+}
+
+static void
+ay_destroy_thread_pool(ayThreadPool** ppPool)
+{
+    if(!ppPool || !*ppPool) return;
+    ayThreadPool* ptPool = *ppPool;
+
+    ay_enter_critical_section(ptPool->ptLock);
+    ptPool->bShutdown = true;
+    ay_condition_broadcast(ptPool->ptWorkReady);
+    ay_leave_critical_section(ptPool->ptLock);
+
+    // ay_destroy_thread joins internally, so this blocks until every
+    // worker has woken up, seen bShutdown, and returned
+    for(int i = 0; i < THREAD_COUNT; i++)
+        ay_destroy_thread(&ptPool->atThreads[i]);
+
+    ay_destroy_condition(&ptPool->ptWorkReady);
+    ay_destroy_condition(&ptPool->ptWorkComplete);
+    ay_destroy_critical_section(&ptPool->ptLock);
+
+    free(ptPool);
+    *ppPool = NULL;
+}
+
+static void
+ay_thread_pool_dispatch(ayThreadPool* ptPool, ayJobFunction ptJob, void* pJobData)
+{
+    ay_enter_critical_section(ptPool->ptLock);
+
+    ptPool->ptCurrentJob = ptJob;
+    ptPool->pCurrentJobData = pJobData;
+    ptPool->uWorkersPending = THREAD_COUNT;
+    ptPool->uGeneration++;
+
+    ay_condition_broadcast(ptPool->ptWorkReady);
+
+    // block until every worker has finished this dispatch
+    while(ptPool->uWorkersPending != 0)
+        ay_condition_wait(ptPool->ptWorkComplete, ptPool->ptLock);
+
+    ay_leave_critical_section(ptPool->ptLock);
+}
+
 static void
 ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
 {
@@ -1552,38 +1384,79 @@ ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor)
 
 };
 
-void*
-upscale_worker_thread(void* pData)
+static void
+tile_worker_job(void* pJobData, uint32_t uWorkerIndex)
 {
-    ayUpscaleWorkerData* ptWorkerData = (ayUpscaleWorkerData*)pData;
+    (void)uWorkerIndex; // tile claiming is dynamic via atomic counter, not index-based
+    ayTileWorkerData* ptTileData = (ayTileWorkerData*)pJobData;
 
-    ayTexture tLowResTexture = {
+    while(true)
+    {
+        uint32_t uTileInd = ay_atomic_fetch_add(ptTileData->ptNextTileIndex, 1);
+        
+        if(uTileInd >= ptTileData->ptData->ptTileRenderer->uTotalTiles)
+            break;
+
+        // tile local buffers, sized off AY_MAX_TILE_SIZE since uTileSize is
+        // clamped to it in ay_init_tile_renderer and can never exceed it
+        uint8_t auLocalFB[AY_MAX_TILE_SIZE * AY_MAX_TILE_SIZE * 4];
+        float   afLocalDB[AY_MAX_TILE_SIZE * AY_MAX_TILE_SIZE];
+        memset(auLocalFB, 255, sizeof(auLocalFB));
+        memset(afLocalDB, 0, sizeof(afLocalDB));
+
+        ay_render_tile_local(*ptTileData->ptData, auLocalFB, afLocalDB, uTileInd);
+    
+        // using critical sections since tiles could try to copy at the same time and frame buffer is shared
+        ay_enter_critical_section(ptTileData->ptFramebufferLock); 
+
+        uint32_t uMinX, uMinY, uMaxX, uMaxY;
+        ay_get_tile_bounds(ptTileData->ptData->ptTileRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
+        ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+        
+        ay_leave_critical_section(ptTileData->ptFramebufferLock); 
+    }
+}
+
+static void
+upscale_worker_job(void* pJobData, uint32_t uWorkerIndex)
+{
+    ayUpscaleWorkerData* ptWorkerData = (ayUpscaleWorkerData*)pJobData;
+
+    ayTexture tInputFrameBuffer = {
         .pucData = ptWorkerData->ptInputFrameBuffer->auData,
         .iWidth  = ptWorkerData->ptInputFrameBuffer->uWidth,
         .iHeight = ptWorkerData->ptInputFrameBuffer->uHeight
     };
 
-    for(uint32_t uY = ptWorkerData->uStartY; uY < ptWorkerData->uEndY; uY++)
-    {
-        float fV = (float)uY / (float)(ptWorkerData->ptOutputFrameBuffer->uHeight - 1);
-        int iRowOffset = ptWorkerData->ptOutputFrameBuffer->uWidth * 4 * uY;
+    uint32_t uOutputHeight = ptWorkerData->ptOutputFrameBuffer->uHeight;
+    uint32_t uOutputWidth  = ptWorkerData->ptOutputFrameBuffer->uWidth;
+    uint32_t uRowsPerThread = uOutputHeight / THREAD_COUNT;
 
-        for(uint32_t uX = 0; uX < ptWorkerData->ptOutputFrameBuffer->uWidth; uX++)
+    uint32_t uStartY = uWorkerIndex * uRowsPerThread;
+    // last worker picks up any remainder rows from integer division
+    uint32_t uEndY = (uWorkerIndex == THREAD_COUNT - 1) ? uOutputHeight : (uWorkerIndex + 1) * uRowsPerThread;
+
+    for(uint32_t uY = uStartY; uY < uEndY; uY++)
+    {
+        float fV = (float)uY / (float)(uOutputHeight - 1);
+        int iRowOffset = uOutputWidth * 4 * uY;
+
+        for(uint32_t uX = 0; uX < uOutputWidth; uX++)
         {
-            float fU = (float)uX / (float)(ptWorkerData->ptOutputFrameBuffer->uWidth - 1);
+            float fU = (float)uX / (float)(uOutputWidth - 1);
 
             ayVec4 tColor;
             switch(ptWorkerData->tFilter)
             {
                 case AY_UPSCALE_FILTER_BILINEAR:
-                    tColor = ay_sample_texture_bilinear(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    tColor = ay_sample_texture_bilinear(tInputFrameBuffer, (ayVec2){fU, fV}, 4);
                     break;
                 case AY_UPSCALE_FILTER_BICUBIC:
-                    tColor = ay_sample_texture_bicubic(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    tColor = ay_sample_texture_bicubic(tInputFrameBuffer, (ayVec2){fU, fV}, 4);
                     break;
                 case AY_UPSCALE_FILTER_NEAREST:
                 default:
-                    tColor = ay_sample_texture(tLowResTexture, (ayVec2){fU, fV}, 4);
+                    tColor = ay_sample_texture(tInputFrameBuffer, (ayVec2){fU, fV}, 4);
                     break;
             }
 
@@ -1594,38 +1467,20 @@ upscale_worker_thread(void* pData)
             ptWorkerData->ptOutputFrameBuffer->auData[iPixelStart + 3] = (unsigned char)tColor.a;
         }
     }
-
-    return NULL;
 }
 
 static void
-ay_upscale_frame_buffer(ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter)
+ay_upscale_frame_buffer(ayGraphicsData* ptData, ayFrameBufferData* ptInputFrameBuffer, ayFrameBufferData* ptOutputFrameBuffer, ayUpscaleFilter tFilter)
 {
-    // rows are split evenly across threads, no lock needed since each
-    // thread only ever writes its own disjoint row range
-    uint32_t uRowsPerThread = ptOutputFrameBuffer->uHeight / THREAD_COUNT;
+    // single shared job struct, each worker computes its own disjoint row
+    // band from its pool-assigned index; no lock needed since bands never overlap
+    ayUpscaleWorkerData tWorkerData = {
+        .ptInputFrameBuffer  = ptInputFrameBuffer,
+        .ptOutputFrameBuffer = ptOutputFrameBuffer,
+        .tFilter             = tFilter
+    };
 
-    ayUpscaleWorkerData tWorkerData[THREAD_COUNT];
-    ayThread* tThreads[THREAD_COUNT];
-
-    for(int i = 0; i < THREAD_COUNT; i++)
-    {
-        tWorkerData[i].ptInputFrameBuffer  = ptInputFrameBuffer;
-        tWorkerData[i].ptOutputFrameBuffer = ptOutputFrameBuffer;
-        tWorkerData[i].tFilter = tFilter;
-        tWorkerData[i].uStartY = i * uRowsPerThread;
-
-        // last thread picks up any remainder rows from integer division
-        tWorkerData[i].uEndY = (i == THREAD_COUNT - 1) ? ptOutputFrameBuffer->uHeight : (i + 1) * uRowsPerThread;
-
-        ay_create_thread(upscale_worker_thread, &tWorkerData[i], &tThreads[i]);
-    }
-
-    for(int i = 0; i < THREAD_COUNT; i++)
-    {
-        ay_join_thread(tThreads[i]);
-        ay_destroy_thread(&tThreads[i]);
-    }
+    ay_thread_pool_dispatch(ptData->ptThreadPool, upscale_worker_job, &tWorkerData);
 }
 
 //-----------------------------------------------------------------------------
