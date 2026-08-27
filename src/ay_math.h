@@ -101,6 +101,21 @@ ay_mat4_multiply(ayMat4 a, ayMat4 b)
 }
 
 static inline ayMat4
+ay_mat4_rotate_x(float fAngleRadians)
+{
+    ayMat4 tResult = ay_mat4_identity();
+    float fCos = cosf(fAngleRadians);
+    float fSin = sinf(fAngleRadians);
+
+    tResult.m[1][1] =  fCos;
+    tResult.m[1][2] = -fSin;
+    tResult.m[2][1] =  fSin;
+    tResult.m[2][2] =  fCos;
+
+    return tResult;
+}
+
+static inline ayMat4
 ay_mat4_rotate_y(float fAngleRadians)
 {
     ayMat4 tResult = ay_mat4_identity();

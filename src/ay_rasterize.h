@@ -3,7 +3,7 @@
 */
 
 #define AY_RASTERIZE_VERSION_MAJOR 0
-#define AY_RASTERIZE_VERSION_MINOR 1
+#define AY_RASTERIZE_VERSION_MINOR 2
 #define AY_RASTERIZE_VERSION_PATCH 0
 
 /*
@@ -143,7 +143,8 @@ typedef struct _ayDescriptor
 
 typedef struct _ayTileRenderInfo
 {
-    uint32_t uTileSize; // 0 defaults to 32
+    uint32_t uTileSize;          // 0 defaults to 32
+    uint32_t uTriangleCapacity;  // 0 defaults to 100, clamped to AY_MAX_TILE_TRIANGLE_CAPACITY
 } ayTileRenderInfo;
 
 typedef struct _ayUpscaleInfo

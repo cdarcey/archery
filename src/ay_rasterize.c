@@ -18,6 +18,7 @@ Index of this file:
 //-----------------------------------------------------------------------------
 
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -41,6 +42,7 @@ ayDrawIndProfiler g_raster_profiler = {0};
 #define THREAD_COUNT 8
 #define AY_MAX_TILE_SIZE 32
 #define AY_TILE_TRIANGLE_CAPACITY 100
+#define AY_MAX_TILE_TRIANGLE_CAPACITY 2048
 
 //-----------------------------------------------------------------------------
 // [SECTION] internal structs
@@ -136,6 +138,10 @@ typedef struct _ayGraphicsData
 
     // multi threading
     ayThreadPool* ptThreadPool;
+
+    // fires once if a tile's triangle bin overflows, so silent drops don't
+    // go unnoticed but a dense mesh doesn't spam the console every frame
+    bool bTriangleCapacityWarned;
 } ayGraphicsData;
 
 //-----------------------------------------------------------------------------
@@ -289,8 +295,10 @@ ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo)
         ptData->ptTileBins = malloc(sizeof(ayTileBins));
         memset(ptData->ptTileBins, 0, sizeof(ayTileBins));
         
-        // TODO: decide if this should be configurable to give more granular control to the API user
-        ptData->ptTileBins->uCapacity = AY_TILE_TRIANGLE_CAPACITY;
+        uint32_t uRequestedCapacity = ptCreateGraphicsInfo->tTileSettings.uTriangleCapacity;
+        ptData->ptTileBins->uCapacity = uRequestedCapacity == 0
+            ? AY_TILE_TRIANGLE_CAPACITY
+            : ay_min(uRequestedCapacity, AY_MAX_TILE_TRIANGLE_CAPACITY);
         ptData->ptTileBins->uTotalTiles = ptData->ptTileRenderer->uTotalTiles;
         
         ptData->ptTileBins->uCounts = malloc(sizeof(uint32_t) * ptData->ptTileBins->uTotalTiles);
@@ -497,8 +505,7 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     uint32_t uBinStart = uTileIndex * tDataCopy.ptTileBins->uCapacity;
     uint32_t uTriangleCount = tDataCopy.ptTileBins->uCounts[uTileIndex];
 
-    // tied to AY_TILE_TRIANGLE_CAPACITY so this can never drift out of sync with bin capacity
-    uint32_t auTileIndexBuffer[AY_TILE_TRIANGLE_CAPACITY * 3] = {0};
+    uint32_t auTileIndexBuffer[AY_MAX_TILE_TRIANGLE_CAPACITY * 3] = {0};
 
     for(uint32_t i = 0; i < uTriangleCount; i++) 
     {
@@ -521,18 +528,44 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
 }
 
 void 
-ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY)
+ay_add_tile_to_frame(ayFrameBufferData* tMainFB, uint8_t* uLocalFB, float* pfLocalDB, uint32_t uMinX, uint32_t uMinY, uint32_t uMaxX, uint32_t uMaxY)
 {
     // grab tile width (partial tiles possible when frame buffer dim is not divisible by tile size)
     uint32_t uTileWidth = uMaxX - uMinX;
     uint32_t uTileHeight = uMaxY - uMinY;
-    
-    for(uint32_t i = 0; i < uTileHeight; i++) 
+
+    for(uint32_t y = 0; y < uTileHeight; y++)
     {
-        uint32_t uSrcOffset = i * uTileWidth * 4;  // local FB is tileWidth wide
-        uint32_t uDstOffset = ((uMinY + i) * tMainFB->uWidth + uMinX) * 4;
-        
-        memcpy(&tMainFB->auData[uDstOffset], &uLocalFB[uSrcOffset], uTileWidth * 4);
+        for(uint32_t x = 0; x < uTileWidth; x++)
+        {
+            uint32_t uLocalPixelIndex = y * uTileWidth + x;
+            uint32_t uDstPixelIndex = (uMinY + y) * tMainFB->uWidth + (uMinX + x);
+
+            if(tMainFB->bDepthEnabled)
+            {
+                float fLocalDepth = pfLocalDB[uLocalPixelIndex];
+
+                // 0 is the tile's clear/background depth (nothing rasterized
+                // here on this draw call), never overwrite with background
+                if(fLocalDepth == 0.0f)
+                    continue;
+
+                // reverse-z: higher value is closer. only accept this pixel
+                // if it's actually closer than whatever another draw already
+                // placed here earlier in the same frame
+                if(fLocalDepth <= tMainFB->pfDepthBuffer[uDstPixelIndex])
+                    continue;
+
+                tMainFB->pfDepthBuffer[uDstPixelIndex] = fLocalDepth;
+            }
+
+            uint32_t uLocalByteOffset = uLocalPixelIndex * 4;
+            uint32_t uDstByteOffset = uDstPixelIndex * 4;
+            tMainFB->auData[uDstByteOffset + 0] = uLocalFB[uLocalByteOffset + 0];
+            tMainFB->auData[uDstByteOffset + 1] = uLocalFB[uLocalByteOffset + 1];
+            tMainFB->auData[uDstByteOffset + 2] = uLocalFB[uLocalByteOffset + 2];
+            tMainFB->auData[uDstByteOffset + 3] = uLocalFB[uLocalByteOffset + 3];
+        }
     }
 }
 
@@ -558,6 +591,8 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
     }
     
     ayTransformedVertex* ptTransformedVerts = ptData->pTransformedVertexCache;
+
+    uint32_t uDroppedTriangles = 0;
 
     // process each triangle
     for(uint32_t i = 0; i < uIndexCount; i += 3)
@@ -616,8 +651,21 @@ ay_bin_triangles(ayGraphicsData* ptData, uint32_t uIndexCount, uint32_t uFirstIn
                     ptData->ptTileBins->uTriangleIndices[uBinStart + uCount] = i / 3;
                     ptData->ptTileBins->uCounts[uTileIndex]++;
                 }
+                else
+                {
+                    uDroppedTriangles++;
+                }
             }
         }
+    }
+
+    if(uDroppedTriangles > 0 && !ptData->bTriangleCapacityWarned)
+    {
+        printf("ay_rasterize warning: %u triangle bin overflow(s) this draw call, "
+               "per-tile capacity of %u exceeded. these triangles were silently dropped. "
+               "raise ayTileRenderInfo.uTriangleCapacity to fix (this warning only prints once).\n",
+               uDroppedTriangles, ptData->ptTileBins->uCapacity);
+        ptData->bTriangleCapacityWarned = true;
     }
 
     return true;
@@ -1397,6 +1445,13 @@ tile_worker_job(void* pJobData, uint32_t uWorkerIndex)
         if(uTileInd >= ptTileData->ptData->ptTileRenderer->uTotalTiles)
             break;
 
+        // skip tiles with no triangles bound for this draw call: rendering and
+        // copying an empty tile would overwrite whatever an earlier draw call
+        // already placed there with background color, since ay_add_tile_to_frame
+        // does a per-pixel copy that still touches every pixel in the tile rect
+        if(ptTileData->ptData->ptTileBins->uCounts[uTileInd] == 0)
+            continue;
+
         // tile local buffers, sized off AY_MAX_TILE_SIZE since uTileSize is
         // clamped to it in ay_init_tile_renderer and can never exceed it
         uint8_t auLocalFB[AY_MAX_TILE_SIZE * AY_MAX_TILE_SIZE * 4];
@@ -1414,7 +1469,7 @@ tile_worker_job(void* pJobData, uint32_t uWorkerIndex)
         uint32_t uMaxX = 0;
         uint32_t uMaxY = 0;
         ay_get_tile_bounds(ptTileData->ptData->ptTileRenderer, uTileInd, &uMinX, &uMinY, &uMaxX, &uMaxY);
-        ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, uMinX, uMinY, uMaxX, uMaxY);
+        ay_add_tile_to_frame(ptTileData->ptData->ptFrameBufferData, auLocalFB, afLocalDB, uMinX, uMinY, uMaxX, uMaxY);
         
         ay_leave_critical_section(ptTileData->ptFramebufferLock); 
     }
