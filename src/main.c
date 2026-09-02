@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <math.h>
 #include "ay_rasterize.h"
 #define AY_RASTERIZE_PROFILE_ENABLED
 #include "ay_rasterize_profile.h"
@@ -10,7 +10,7 @@
 #include "cylinder_mesh.h"
 #include "sphere_mesh.h"
 
-#define bUpscaleEnabled true
+#define bUpscaleEnabled false
 #define tUpscaleFilterUsed AY_UPSCALE_FILTER_BILINEAR
 
 // real output/window resolution, always the same regardless of the toggle
@@ -21,10 +21,10 @@
 #define screenWidth  (bUpscaleEnabled ? 640 : outputWidth)
 #define screenHeight (bUpscaleEnabled ? 360 : outputHeight)
 
-#define uWarmupFrames    60
-#define uBenchmarkFrames 300
+#define uWarmupFrames     60
+#define uBenchmarkFrames  300
 
-#define fSceneMeshScale 0.8f
+#define fSceneMeshScale 0.6f
 
 typedef struct _ayTestSceneObject
 {
@@ -33,8 +33,23 @@ typedef struct _ayTestSceneObject
     uint32_t        uVertexCount;
     uint32_t        uIndexCount;
     float           fPositionX;
-    ayVec4          tColor;
+    ayVec3*         ptVertexColors; // one entry per vertex, generated once at startup
 } ayTestSceneObject;
+
+static ayVec3*
+generate_vertex_colors(uint32_t uVertexCount)
+{
+    ayVec3* ptColors = malloc(sizeof(ayVec3) * uVertexCount);
+
+    for(uint32_t i = 0; i < uVertexCount; i++)
+    {
+        ptColors[i].r = (float)((i * 37) % 256);
+        ptColors[i].g = (float)((i * 91) % 256);
+        ptColors[i].b = (float)((i * 53) % 256);
+    }
+
+    return ptColors;
+}
 
 ayVec4 scene_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn);
 ayVec3 scene_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut);
@@ -47,7 +62,7 @@ int main()
         .bTileRendering = true,
         .tTileSettings = {
             .uTileSize         = 32,
-            .uTriangleCapacity = 300
+            .uTriangleCapacity = 275
         },
         .bUpscale       = bUpscaleEnabled,
         .tUpscaleSettings = {
@@ -74,12 +89,15 @@ int main()
     };
 
     ayTestSceneObject atObjects[] = {
-        { cube_vertices,     cube_indices,     CUBE_VERTEX_COUNT,     CUBE_INDEX_COUNT,     -4.5f, {255,  80,  80, 255} },
-        { cone_vertices,     cone_indices,     CONE_VERTEX_COUNT,     CONE_INDEX_COUNT,     -1.5f, { 80, 255,  80, 255} },
-        { cylinder_vertices, cylinder_indices, CYLINDER_VERTEX_COUNT, CYLINDER_INDEX_COUNT,  1.5f, { 80,  80, 255, 255} },
-        { sphere_vertices,   sphere_indices,   SPHERE_VERTEX_COUNT,   SPHERE_INDEX_COUNT,    4.5f, {255, 255,  80, 255} }
+        { cube_vertices,     cube_indices,     CUBE_VERTEX_COUNT,     CUBE_INDEX_COUNT,     -4.5f },
+        { cone_vertices,     cone_indices,     CONE_VERTEX_COUNT,     CONE_INDEX_COUNT,     -1.5f },
+        { cylinder_vertices, cylinder_indices, CYLINDER_VERTEX_COUNT, CYLINDER_INDEX_COUNT,  1.5f },
+        { sphere_vertices,   sphere_indices,   SPHERE_VERTEX_COUNT,   SPHERE_INDEX_COUNT,    4.5f }
     };
     const uint32_t uObjectCount = sizeof(atObjects) / sizeof(atObjects[0]);
+
+    for(uint32_t i = 0; i < uObjectCount; i++)
+        atObjects[i].ptVertexColors = generate_vertex_colors(atObjects[i].uVertexCount);
 
     ayMat4 projection = ay_mat4_perspective(60.0f * 3.14159f / 180.0f, (float)screenWidth / screenHeight, 0.1f, 100.0f);
 
@@ -162,7 +180,7 @@ int main()
             ay_bind_vertex_buffer(ptData, ptObject->pfVertices);
             ay_bind_index_buffer(ptData, (uint32_t*)ptObject->puIndices);
             ay_bind_descriptor(ptData, 0, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &mvp);
-            ay_bind_descriptor(ptData, 1, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, &ptObject->tColor);
+            ay_bind_descriptor(ptData, 1, AY_DESCRIPTOR_TYPE_UNIFORM_BUFFER, ptObject->ptVertexColors);
             ay_bind_pipeline(ptData, &scenePipeline);
 
             ay_draw_indexed(ptData, 0, ptObject->uIndexCount);
@@ -170,6 +188,9 @@ int main()
 
         ay_present_frame(ptData, ptWindow);
     }
+
+    for(uint32_t i = 0; i < uObjectCount; i++)
+        free(atObjects[i].ptVertexColors);
 
     ay_destroy_window(ptWindow);
     ay_destroy_graphics(&ptData);
@@ -183,15 +204,21 @@ int main()
 
 ayVec4 scene_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescriptor, const ayVaryingData* ptVaryingDataIn)
 {
-    ayVec4* ptColor = (ayVec4*)tDescriptor[1].pData;
-    return *ptColor;
+    const ayVec3* ptColor = ay_get_varying(0, ptVaryingDataIn);
+    return (ayVec4){ ptColor->r, ptColor->g, ptColor->b, 255.0f };
 }
 
 ayVec3 scene_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut)
 {
     ayVec3 position = *(ayVec3*)ay_get_vertex_attrib(pVertexDataIn, tBuiltIns.tLayout, 0);
+
     ayMat4* pMVP = (ayMat4*)tDescriptor[0].pData;
-    ayVec3 tConverted = { position.x, position.z, -position.y };
+    ayVec3  tConverted = { position.x, position.z, -position.y };
+    ayVec3* ptVertexColors = (ayVec3*)tDescriptor[1].pData;
+    ayVec3  tColor = ptVertexColors[tBuiltIns.uVertexID];
+
+    ayVec3* pColorOut = ay_set_varying(AY_VARYING_TYPE_VEC3, ptVaryingDataOut);
+    *pColorOut = tColor;
 
     ayVec4 pos = {tConverted.x * fSceneMeshScale, tConverted.y * fSceneMeshScale, tConverted.z * fSceneMeshScale, 1.0f};
     pos = ay_mat4_mul_vec4(*pMVP, pos);

@@ -153,7 +153,7 @@ static ayThreadPool* ay_create_thread_pool(void);
 static void          ay_destroy_thread_pool(ayThreadPool** ppPool);
 static void          ay_thread_pool_dispatch(ayThreadPool* ptPool, ayJobFunction ptJob, void* pJobData);
 
-static void ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount);
+static void ay_draw_indexed_backend(ayGraphicsData* ptData, float* pfMainDepthBuffer, uint32_t uFirstIndex, uint32_t uIndexCount);
 static void ay_set_pixel(ayFrameBufferData* ptData, ayVec2 input, ayVec4 tColor);
 static void tile_worker_job(void* pJobData, uint32_t uWorkerIndex);
 static void upscale_worker_job(void* pJobData, uint32_t uWorkerIndex);
@@ -505,6 +505,11 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     uint32_t uBinStart = uTileIndex * tDataCopy.ptTileBins->uCapacity;
     uint32_t uTriangleCount = tDataCopy.ptTileBins->uCounts[uTileIndex];
 
+    // grab the real frame's depth buffer before ptFrameBufferData gets
+    // pointed at the local tile struct below, so the backend can still
+    // check candidate pixels against everything drawn earlier this frame
+    float* pfMainDepthBuffer = tDataCopy.ptFrameBufferData->pfDepthBuffer;
+
     uint32_t auTileIndexBuffer[AY_MAX_TILE_TRIANGLE_CAPACITY * 3] = {0};
 
     for(uint32_t i = 0; i < uTriangleCount; i++) 
@@ -524,7 +529,7 @@ ay_render_tile_local(ayGraphicsData tDataCopy, uint8_t* auLocalFB, float* afLoca
     tDataCopy.uTileMaxX = uMaxX;
     tDataCopy.uTileMaxY = uMaxY;
 
-    ay_draw_indexed_backend(&tDataCopy, 0, uTriangleCount * 3);   
+    ay_draw_indexed_backend(&tDataCopy, pfMainDepthBuffer, 0, uTriangleCount * 3);   
 }
 
 void 
@@ -703,7 +708,7 @@ ay_draw(ayGraphicsData* ptData, uint32_t uFirstVertex, uint32_t uVertexCount)
 }
 
 static void 
-ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCount)
+ay_draw_indexed_backend(ayGraphicsData* ptData, float* pfMainDepthBuffer, uint32_t uFirstIndex, uint32_t uIndexCount)
 {
     bool bTiledRendering = ptData->bTileRendering;
 
@@ -885,6 +890,24 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
                         const float weightB = rowCAP * invABC;
                         const float weightC = rowABP * invABC;
 
+                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
+
+                        // TODO: this early-Z check assumes a losing fragment can be safely
+                        // discarded, because the winner fully replaces it. That's only true for
+                        // opaque geometry. If alpha blending is added, transparent fragments need
+                        // to be excluded from this reject path entirely a losing depth test
+                        // doesn't mean "invisible," it means "blends behind what's already here."
+                        // Transparent draws will likely need their own pass: back-to-front order,
+                        // depth test on, depth write off, and no early rejection at all.
+                        if(bTiledRendering && pfMainDepthBuffer && fPixelDepth <= pfMainDepthBuffer[y * ptData->uScreenWidth + x])
+                        {
+                            rowABP += ABa;
+                            rowBCP += BCa;
+                            rowCAP += CAa;
+                            uRowDepthIndex += 1;
+                            continue;
+                        }
+
                         ayPixelShaderBuiltIns tBuiltIns = {
                             .tUV = {x, y}
                         };
@@ -907,9 +930,7 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t u
                             }
                         }
 
-                        // depth checking and setting pixel/depth buffer
                         PROFILE_START(DepthTest);
-                        float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
                         float fCurrentDepth = pfDepthBuffer[uBufferDepthIndex];
                         PROFILE_END(DepthTest);
 
@@ -1048,7 +1069,7 @@ ay_draw_indexed(ayGraphicsData* ptData, uint32_t uFirstIndex, uint32_t uIndexCou
     }
     else
     {
-        ay_draw_indexed_backend(ptData, uFirstIndex, uIndexCount);
+        ay_draw_indexed_backend(ptData, NULL, uFirstIndex, uIndexCount);
     }
 }
 
