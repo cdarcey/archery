@@ -23,8 +23,7 @@
 
 #define uWarmupFrames     60
 #define uBenchmarkFrames  300
-
-#define fSceneMeshScale 0.6f
+#define fSceneMeshScale   0.6f
 
 typedef struct _ayTestSceneObject
 {
@@ -156,7 +155,7 @@ int main()
             double fps = iFrameCount / (dCurrentTime - dLastFPSTime);
             char title[256];
             sprintf(title, "Scene Test | FPS: %.1f (%.2f ms)", fps, 1000.0 / fps);
-            glfwSetWindowTitle(ptWindow->pWindow, title);
+            ay_window_set_title(ptWindow, title);
             iFrameCount = 0;
             dLastFPSTime = dCurrentTime;
         }
@@ -210,8 +209,7 @@ ayVec4 scene_pixel_shader(ayPixelShaderBuiltIns tBuiltIns, ayDescriptor* tDescri
 
 ayVec3 scene_vertex_shader(ayVertexShaderBuiltIns tBuiltIns, const void* pVertexDataIn, ayDescriptor* tDescriptor, ayVaryingData* ptVaryingDataOut)
 {
-    ayVec3 position = *(ayVec3*)ay_get_vertex_attrib(pVertexDataIn, tBuiltIns.tLayout, 0);
-
+    ayVec3  position = *(ayVec3*)ay_get_vertex_attrib(pVertexDataIn, tBuiltIns.tLayout, 0);
     ayMat4* pMVP = (ayMat4*)tDescriptor[0].pData;
     ayVec3  tConverted = { position.x, position.z, -position.y };
     ayVec3* ptVertexColors = (ayVec3*)tDescriptor[1].pData;

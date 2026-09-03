@@ -2,10 +2,6 @@
    ay_rasterize.h
 */
 
-#define AY_RASTERIZE_VERSION_MAJOR 0
-#define AY_RASTERIZE_VERSION_MINOR 2
-#define AY_RASTERIZE_VERSION_PATCH 0
-
 /*
 Index of this file:
 // [SECTION] header mess
@@ -31,6 +27,7 @@ Index of this file:
 #include <stdbool.h> // bool
 
 #include "ay_math.h"
+#include "ay_windowing.h"
 
 //-----------------------------------------------------------------------------
 // [SECTION] enums
@@ -81,13 +78,6 @@ typedef enum _ayUpscaleFilter
 //-----------------------------------------------------------------------------
 
 typedef struct _ayGraphicsData ayGraphicsData;    // opaque
-
-typedef struct ayWindow {
-    GLFWwindow* pWindow;
-    GLuint      uframebufferTexture; // gl texture id for framebuffer
-    uint32_t    uWidth;
-    uint32_t    uHeight;
-} ayWindow;
 
 typedef struct _ayFrameBufferData
 {
@@ -185,10 +175,8 @@ typedef struct _ayPipeline
 ayGraphicsData* ay_initialize_graphics(ayCreateGraphicsInfo* ptCreateGraphicsInfo);
 void            ay_destroy_graphics(ayGraphicsData** ppData);
 
-// windowing & presenting
-ayWindow* ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle);
-void      ay_destroy_window(ayWindow* ptWindow);
-bool      ay_window_should_close(ayWindow* ptWindow);
+// windowing & presenting (ayWindow itself and its create/destroy/should_close/
+// set_title functions are declared in ay_windowing.h, implemented per-OS)
 void      ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow);
 
 // framebuffer ops
@@ -203,6 +191,7 @@ unsigned char* ay_load_png(const char* pcFileName, int* iWidthOut, int* iHeightO
 
 // textures
 ayVec4 ay_sample_texture         (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
+ayVec4 ay_extract_sprite_texture (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents, int spriteX, int spriteY, int spriteWidth, int spriteHeight);
 ayVec4 ay_sample_texture_bilinear(ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 ayVec4 ay_sample_texture_bicubic (ayTexture tTexture, ayVec2 tUV, uint32_t uComponents);
 

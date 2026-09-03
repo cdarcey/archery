@@ -370,57 +370,6 @@ ay_destroy_graphics(ayGraphicsData** ppData)
     *ppData = NULL;
 }
 
-ayWindow* 
-ay_create_window(uint32_t uWidth, uint32_t uHeight, const char* pcTitle)
-{
-    ayWindow* ptNewWindow = malloc(sizeof(ayWindow));
-    if(!ptNewWindow) return NULL;
-    memset(ptNewWindow, 0, (sizeof(ayWindow)));
-
-    glfwInit();
-    ptNewWindow->pWindow = glfwCreateWindow(uWidth, uHeight, pcTitle, NULL, NULL);
-    glfwMakeContextCurrent(ptNewWindow->pWindow);
-
-    // set up OpenGL for 2D rendering
-    glViewport(0, 0, uWidth, uHeight);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    glOrtho(0, uWidth, uHeight, 0, -1, 1); // Y-down coordinates
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-
-    // create OpenGL texture for framebuffer
-    glGenTextures(1, &ptNewWindow->uframebufferTexture);
-    glBindTexture(GL_TEXTURE_2D, ptNewWindow->uframebufferTexture);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, uWidth, uHeight, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glBindTexture(GL_TEXTURE_2D, 0);
-
-    // store values
-    ptNewWindow->uWidth  = uWidth;
-    ptNewWindow->uHeight = uHeight;
-
-    return ptNewWindow;
-}
-
-void
-ay_destroy_window(ayWindow* ptWindow)
-{
-    if(!ptWindow) return;
-    
-    glDeleteTextures(1, &ptWindow->uframebufferTexture);
-    glfwDestroyWindow(ptWindow->pWindow);
-    glfwTerminate();
-    free(ptWindow);
-}
-
-bool 
-ay_window_should_close(ayWindow* ptWindow)
-{
-    return glfwWindowShouldClose(ptWindow->pWindow);
-}
-
 void 
 ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow)
 {
@@ -435,22 +384,7 @@ ay_present_frame(ayGraphicsData* ptData, ayWindow* ptWindow)
         ptSourceBuffer = ptData->ptOutputFrameBuffer;
     }
 
-    // upload framebuffer pixels to gl texture
-    glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, ptSourceBuffer->uWidth, ptSourceBuffer->uHeight, 
-                    GL_RGBA, GL_UNSIGNED_BYTE, ptSourceBuffer->auData);
-    
-    // draw fullscreen quad with texture
-    glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, ptWindow->uframebufferTexture);
-    glBegin(GL_QUADS);
-        glTexCoord2f(0, 0); glVertex2f(0, 0);
-        glTexCoord2f(1, 0); glVertex2f(ptWindow->uWidth, 0);
-        glTexCoord2f(1, 1); glVertex2f(ptWindow->uWidth, ptWindow->uHeight);
-        glTexCoord2f(0, 1); glVertex2f(0, ptWindow->uHeight);
-    glEnd();
-    
-    glfwSwapBuffers(ptWindow->pWindow);
+    ay_window_present_pixels(ptWindow, ptSourceBuffer->auData, ptSourceBuffer->uWidth, ptSourceBuffer->uHeight);
 }
 
 void
@@ -892,13 +826,6 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, float* pfMainDepthBuffer, uint32
 
                         float fPixelDepth = tVertex0.z * weightA + tVertex1.z * weightB + tVertex2.z * weightC;
 
-                        // TODO: this early-Z check assumes a losing fragment can be safely
-                        // discarded, because the winner fully replaces it. That's only true for
-                        // opaque geometry. If alpha blending is added, transparent fragments need
-                        // to be excluded from this reject path entirely a losing depth test
-                        // doesn't mean "invisible," it means "blends behind what's already here."
-                        // Transparent draws will likely need their own pass: back-to-front order,
-                        // depth test on, depth write off, and no early rejection at all.
                         if(bTiledRendering && pfMainDepthBuffer)
                         {
                             uint32_t uMainScreenIndex = y * ptData->uScreenWidth + x;
@@ -936,6 +863,8 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, float* pfMainDepthBuffer, uint32
                             }
                         }
 
+                        // existing: depth checking and setting pixel/depth buffer, against
+                        // the LOCAL tile buffer (self-occlusion within this one draw call)
                         PROFILE_START(DepthTest);
                         float fCurrentDepth = pfDepthBuffer[uBufferDepthIndex];
                         PROFILE_END(DepthTest);

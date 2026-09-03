@@ -9,7 +9,7 @@
 @set PATH=C:\Program Files\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
 @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build;%PATH%
 @set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build;%PATH%
-@set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise/VC\Auxiliary\Build;%PATH%
+@set PATH=C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build;%PATH%
 
 @rem setup environment for MSVC dev tools
 @call vcvarsall.bat amd64 > nul
@@ -29,7 +29,7 @@
 @echo [1m[36mCompiling and Linking...[0m
 
 @rem call compiler
-cl main.c ay_rasterize.c ay_threading_win32.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo -I"../dependencies/GLFW/include" -I"../data" -I"../dependencies/stb" -MD -link -LIBPATH:"../dependencies/GLFW/libs" opengl32.lib glfw3.lib user32.lib gdi32.lib shell32.lib -incremental:no /WX 
+cl main.c ay_rasterize.c ay_threading_win32.c ay_windowing_win32.c -Fe"../out/archery.exe" -Fo"../out/" -Od -Zi -nologo /WX -I"../dependencies/GLFW/include" -I"../data" -I"../dependencies/stb" -MD -link -LIBPATH:"../dependencies/GLFW/libs" opengl32.lib glfw3.lib user32.lib gdi32.lib shell32.lib -incremental:no
 
 @rem check build status
 @set PL_BUILD_STATUS=%ERRORLEVEL%
