@@ -2,6 +2,10 @@
    ay_rasterize.c
 */
 
+#define AY_RASTERIZE_VERSION_MAJOR 0
+#define AY_RASTERIZE_VERSION_MINOR 2
+#define AY_RASTERIZE_VERSION_PATCH 0
+
 /*
 Index of this file:
 // [SECTION] includes
