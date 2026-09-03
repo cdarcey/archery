@@ -899,13 +899,19 @@ ay_draw_indexed_backend(ayGraphicsData* ptData, float* pfMainDepthBuffer, uint32
                         // doesn't mean "invisible," it means "blends behind what's already here."
                         // Transparent draws will likely need their own pass: back-to-front order,
                         // depth test on, depth write off, and no early rejection at all.
-                        if(bTiledRendering && pfMainDepthBuffer && fPixelDepth <= pfMainDepthBuffer[y * ptData->uScreenWidth + x])
+                        if(bTiledRendering && pfMainDepthBuffer)
                         {
-                            rowABP += ABa;
-                            rowBCP += BCa;
-                            rowCAP += CAa;
-                            uRowDepthIndex += 1;
-                            continue;
+                            uint32_t uMainScreenIndex = y * ptData->uScreenWidth + x;
+                            bool bOccludedByEarlierDraw = fPixelDepth <= pfMainDepthBuffer[uMainScreenIndex];
+
+                            if(bOccludedByEarlierDraw)
+                            {
+                                rowABP += ABa;
+                                rowBCP += BCa;
+                                rowCAP += CAa;
+                                uRowDepthIndex += 1;
+                                continue;
+                            }
                         }
 
                         ayPixelShaderBuiltIns tBuiltIns = {
